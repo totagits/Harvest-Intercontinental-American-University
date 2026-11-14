@@ -39,8 +39,10 @@ test('staging bootstrap links MICHAEL to one admitted active record with a usabl
     assert.equal(blocked.staging,false);
     assert.equal(store.one('SELECT COUNT(*) AS n FROM students').n,0);
 
-    process.env.APP_URL='https://hiau-staging.totag.network';
-    const created=ensureStagingAcceptanceStudent(store,store.users());
+    const created=ensureStagingAcceptanceStudent(store,store.users(),{
+      requestHost:'hiau-staging.totag.network',
+      accountId:michaelId,
+    });
     assert.equal(created.created,true);
     assert.equal(created.linked,true);
     assert.equal(created.programTitle,'Staging Bachelor Program');
@@ -66,7 +68,10 @@ test('staging bootstrap links MICHAEL to one admitted active record with a usabl
       1,
     );
 
-    const repeated=ensureStagingAcceptanceStudent(store,store.users());
+    const repeated=ensureStagingAcceptanceStudent(store,store.users(),{
+      requestHost:'hiau-staging.totag.network',
+      accountId:michaelId,
+    });
     assert.equal(repeated.created,false);
     assert.equal(repeated.linked,true);
     assert.equal(repeated.reason,'already-linked');
