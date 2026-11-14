@@ -1,10 +1,20 @@
 export type SectionDeliveryMode='classroom'|'online'|'hybrid';
 
+const PLACEHOLDERS=new Set([
+ 'tba','tbd','to be announced','to be determined','not assigned','not configured','n/a','na','-','—'
+]);
+
+export function meaningfulSectionValue(value:any):string{
+ const trimmed=String(value??'').trim();
+ if(!trimmed)return '';
+ return PLACEHOLDERS.has(trimmed.toLowerCase())?'':trimmed;
+}
+
 export function sectionSetupIssue(section:any):string|null{
  const mode=(section?.delivery_mode||'classroom') as SectionDeliveryMode;
- const location=String(section?.location||'').trim();
- const classroom=String(section?.classroom||'').trim();
- const online=String(section?.online_classroom||'').trim();
+ const location=meaningfulSectionValue(section?.location);
+ const classroom=meaningfulSectionValue(section?.classroom);
+ const online=meaningfulSectionValue(section?.online_classroom);
 
  if(mode==='classroom'){
   if(!location&&!classroom)return 'Campus / location and classroom / room are required.';
