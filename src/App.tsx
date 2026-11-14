@@ -41,6 +41,7 @@ import {PartnerAcademicLibrary} from './components/portal/PartnerAcademicLibrary
 import {WebsiteVideoLibrary} from './components/portal/WebsiteVideoLibrary';
 import { SecureStudentWorkspace } from './components/portal/SecureStudentWorkspace';
 import {StudentCoursePlanning} from './components/portal/StudentCoursePlanning';
+import {StudentAddDropWorkflow} from './components/portal/StudentAddDropWorkflow';
 import {StudentFinancialStatement} from './components/portal/StudentFinancialStatement';
 import {StudentAssistanceRequests} from './components/portal/StudentAssistanceRequests';
 import { AdmissionsReviewModule } from './components/portal/AdmissionsReviewModule';
