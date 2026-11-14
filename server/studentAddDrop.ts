@@ -10,13 +10,6 @@ const today=()=>new Date().toISOString().slice(0,10);
 const uuid=/^[a-f0-9-]{36}$/i;
 const STAGING_HOST='hiau-staging.totag.network';
 const parseIds=(value:string)=>{try{const x=JSON.parse(value);return Array.isArray(x)?x.filter(v=>typeof v==='string'):[];}catch{return [];}};
-const semesterWeek=(start:string)=>{
- const startMs=Date.parse(start+'T00:00:00Z');
- if(!Number.isFinite(startMs))return 99;
- return Math.max(1,Math.floor((Date.now()-startMs)/(7*86400000))+1);
-};
-const refundRate=(week:number)=>week<=2?1:week<=4?0.5:0;
-
 export function installStudentAddDrop(app:Express,store:Operations){
  store.run(`CREATE TABLE IF NOT EXISTS student_add_drop_requests(
   id TEXT PRIMARY KEY,
