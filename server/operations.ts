@@ -71,6 +71,8 @@ const operationalTables = [
   'applications',
   'students',
   'registrations',
+  'student_add_drop_requests',
+  'student_add_drop_carts',
   'student_course_plans',
   'student_course_plan_commits',
   'student_assistance_requests',
