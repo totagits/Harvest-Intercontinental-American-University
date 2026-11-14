@@ -12,7 +12,7 @@ test('Course section capacity is managed by staff and enforced on the student Co
  assert.match(app,/CourseSectionManagement currentUser=\{currentUser\}/);
  assert.match(admin,/Student limit \/ capacity/);
  assert.match(admin,/Create section/);
- assert.match(admin,/Update limit/);
+ assert.match(admin,/Save changes/);
  assert.match(admin,/section\.enrolled} \/ \{section\.capacity/);
  assert.match(admin,/Seats available:/);
 
@@ -22,6 +22,6 @@ test('Course section capacity is managed by staff and enforced on the student Co
  assert.match(board,/!already&&programEligible&&!full/);
 
  assert.match(server,/is full and cannot be added to your Add\/Drop cart/);
- assert.match(operations,/action === 'sectionCapacity'/);
+ assert.match(operations,/action === 'sectionSettings'/);
  assert.match(operations,/Capacity cannot be reduced below the current enrollment/);
 });

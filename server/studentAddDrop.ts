@@ -73,8 +73,8 @@ export function installStudentAddDrop(app:Express,store:Operations){
    const instructor=store.one("SELECT id FROM users WHERE role IN('super_admin','dean','lecturer') ORDER BY CASE role WHEN 'lecturer' THEN 0 WHEN 'dean' THEN 1 ELSE 2 END LIMIT 1");
    if(!instructor)return;
    const id=crypto.randomUUID();
-   store.run(`INSERT INTO sections(id,course_id,term_id,lecturer_id,code,capacity,location,schedule,created_at)
-    VALUES(?,?,?,?,?,?,?,?,?)`,id,course.id,term.id,instructor.id,'A',30,'HIAU Staging / Hybrid','Tue/Thu 14:00–15:30',now());
+   store.run(`INSERT INTO sections(id,course_id,term_id,lecturer_id,code,capacity,delivery_mode,location,classroom,online_classroom,schedule,created_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,id,course.id,term.id,instructor.id,'A',30,'hybrid','HIAU Staging','','','Tue/Thu 14:00–15:30',now());
    created=true;
   }
   if(created)store.audit(actorOf(res)||'system','STAGING_ADD_DROP_SECTION_READY','section',null,{courseCode:'STG-104',termCode:'STG-2026-A',testData:true});
@@ -145,16 +145,22 @@ export function installStudentAddDrop(app:Express,store:Operations){
    const student=studentFor(res);
    if(!student)return res.json({linked:false,terms:[],sections:[],registrations:[],requests:[]});
    const terms=store.all("SELECT id,title,status,max_credits,start_date,end_date FROM terms WHERE status='open' ORDER BY start_date");
-   const sections=store.all(`SELECT s.id,s.term_id,s.code,s.capacity,s.location,s.classroom,s.schedule,s.lecturer_id,
+   const sections=store.all(`SELECT s.id,s.term_id,s.code,s.capacity,s.delivery_mode,s.location,s.classroom,
+      CASE WHEN EXISTS(
+        SELECT 1 FROM registrations ownr
+        WHERE ownr.student_id=? AND ownr.section_id=s.id AND ownr.status='enrolled'
+      ) THEN s.online_classroom ELSE '' END AS online_classroom,
+      CASE WHEN length(trim(s.online_classroom))>0 THEN 1 ELSE 0 END AS has_online_classroom,
+      s.schedule,s.lecturer_id,
       c.id AS course_id,c.code AS course_code,c.title AS course_title,c.credits,
       u.name AS lecturer_name,
       (SELECT COUNT(*) FROM registrations r WHERE r.section_id=s.id AND r.status='enrolled') AS enrolled_count,
       EXISTS(SELECT 1 FROM program_requirements pr WHERE pr.program_id=? AND pr.course_id=c.id) AS program_eligible
     FROM sections s JOIN courses c ON c.id=s.course_id JOIN terms t ON t.id=s.term_id
     LEFT JOIN users u ON u.id=s.lecturer_id
-    WHERE t.status='open' ORDER BY c.code,s.code`,student.program_id);
+    WHERE t.status='open' ORDER BY c.code,s.code`,student.id,student.program_id);
    const registrations=store.all(`SELECT r.id AS registration_id,r.section_id,s.term_id,c.id AS course_id,
-      c.code AS course_code,c.title AS course_title,c.credits,s.schedule,s.location,s.classroom,u.name AS lecturer_name
+      c.code AS course_code,c.title AS course_title,c.credits,s.schedule,s.delivery_mode,s.location,s.classroom,s.online_classroom,u.name AS lecturer_name
     FROM registrations r JOIN sections s ON s.id=r.section_id JOIN courses c ON c.id=s.course_id
     LEFT JOIN users u ON u.id=s.lecturer_id
     WHERE r.student_id=? AND r.status='enrolled' ORDER BY c.code`,student.id);

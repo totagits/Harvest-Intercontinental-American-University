@@ -115,7 +115,7 @@ export class Operations {
       CREATE TABLE IF NOT EXISTS courses(id TEXT PRIMARY KEY,code TEXT UNIQUE NOT NULL,title TEXT NOT NULL,credits INTEGER NOT NULL CHECK(credits>0),fee_cents INTEGER NOT NULL CHECK(fee_cents>=0),created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS course_prerequisites(course_id TEXT NOT NULL REFERENCES courses(id),requires_id TEXT NOT NULL REFERENCES courses(id),PRIMARY KEY(course_id,requires_id),CHECK(course_id<>requires_id));
       CREATE TABLE IF NOT EXISTS program_requirements(program_id TEXT NOT NULL REFERENCES programs(id),course_id TEXT NOT NULL REFERENCES courses(id),PRIMARY KEY(program_id,course_id));
-      CREATE TABLE IF NOT EXISTS sections(id TEXT PRIMARY KEY,course_id TEXT NOT NULL REFERENCES courses(id),term_id TEXT NOT NULL REFERENCES terms(id),lecturer_id TEXT NOT NULL REFERENCES users(id),code TEXT NOT NULL,capacity INTEGER NOT NULL CHECK(capacity>0),location TEXT NOT NULL,classroom TEXT NOT NULL DEFAULT '',schedule TEXT NOT NULL,created_at TEXT NOT NULL,UNIQUE(course_id,term_id,code));
+      CREATE TABLE IF NOT EXISTS sections(id TEXT PRIMARY KEY,course_id TEXT NOT NULL REFERENCES courses(id),term_id TEXT NOT NULL REFERENCES terms(id),lecturer_id TEXT NOT NULL REFERENCES users(id),code TEXT NOT NULL,capacity INTEGER NOT NULL CHECK(capacity>0),delivery_mode TEXT NOT NULL DEFAULT 'classroom' CHECK(delivery_mode IN('classroom','online','hybrid')),location TEXT NOT NULL DEFAULT '',classroom TEXT NOT NULL DEFAULT '',online_classroom TEXT NOT NULL DEFAULT '',schedule TEXT NOT NULL,created_at TEXT NOT NULL,UNIQUE(course_id,term_id,code));
       CREATE TABLE IF NOT EXISTS applications(id TEXT PRIMARY KEY,number TEXT UNIQUE NOT NULL,full_name TEXT NOT NULL,email TEXT NOT NULL,phone TEXT NOT NULL DEFAULT '',program_id TEXT NOT NULL REFERENCES programs(id),status TEXT NOT NULL CHECK(status IN('submitted','under_review','approved','rejected','admitted')),decision_note TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS students(id TEXT PRIMARY KEY,user_id TEXT UNIQUE REFERENCES users(id),application_id TEXT UNIQUE NOT NULL REFERENCES applications(id),student_number TEXT UNIQUE NOT NULL,full_name TEXT NOT NULL,email TEXT UNIQUE NOT NULL COLLATE NOCASE,program_id TEXT NOT NULL REFERENCES programs(id),admitted_term_id TEXT NOT NULL REFERENCES terms(id),status TEXT NOT NULL CHECK(status IN('active','on_leave','graduated')),financial_hold INTEGER NOT NULL DEFAULT 0 CHECK(financial_hold IN(0,1)),created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS registrations(id TEXT PRIMARY KEY,student_id TEXT NOT NULL REFERENCES students(id),section_id TEXT NOT NULL REFERENCES sections(id),status TEXT NOT NULL CHECK(status IN('enrolled','dropped')),created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
@@ -364,9 +364,30 @@ export class Operations {
       CREATE INDEX IF NOT EXISTS partner_event_regs_user
         ON institutional_partner_event_registrations(user_id,status);
       INSERT OR IGNORE INTO migrations VALUES(1,datetime('now'));`);
-    const sectionColumns = this.sql.prepare('PRAGMA table_info(sections)').all() as any[];
+    let sectionColumns = this.sql.prepare('PRAGMA table_info(sections)').all() as any[];
     if (!sectionColumns.some((column: any) => column.name === 'classroom'))
       this.sql.exec("ALTER TABLE sections ADD COLUMN classroom TEXT NOT NULL DEFAULT ''");
+    sectionColumns = this.sql.prepare('PRAGMA table_info(sections)').all() as any[];
+    if (!sectionColumns.some((column: any) => column.name === 'delivery_mode'))
+      this.sql.exec("ALTER TABLE sections ADD COLUMN delivery_mode TEXT NOT NULL DEFAULT 'classroom'");
+    if (!sectionColumns.some((column: any) => column.name === 'online_classroom'))
+      this.sql.exec("ALTER TABLE sections ADD COLUMN online_classroom TEXT NOT NULL DEFAULT ''");
+    this.sql.exec(`
+      UPDATE sections
+      SET delivery_mode=
+        CASE
+          WHEN lower(location) LIKE '% / hybrid' THEN 'hybrid'
+          WHEN lower(location) LIKE '% / online' OR lower(location) LIKE '% / virtual' THEN 'online'
+          ELSE delivery_mode
+        END
+      WHERE delivery_mode='classroom';
+      UPDATE sections
+      SET location=trim(replace(location,' / Hybrid',''))
+      WHERE delivery_mode='hybrid' AND location LIKE '% / Hybrid';
+      UPDATE sections
+      SET location=''
+      WHERE delivery_mode='online' AND (location LIKE '% / Online' OR location LIKE '% / Virtual');
+    `);
   }
   all(query: string, ...parameters: any[]): any[] {
     return this.sql.prepare(query).all(...parameters) as any[];
@@ -679,11 +700,46 @@ export class Operations {
           !['lecturer', 'dean', 'super_admin'].includes(lecturer.role)
         )
           throw new WorkflowError('Choose a faculty account.');
+        const deliveryMode =
+          typeof data.deliveryMode === 'string' ? data.deliveryMode.trim() : '';
+        if (!['classroom', 'online', 'hybrid'].includes(deliveryMode))
+          throw new WorkflowError(
+            'Choose Classroom, Online, or Hybrid delivery.',
+          );
+        const location =
+          typeof data.location === 'string' ? data.location.trim() : '';
         const classroom =
           typeof data.classroom === 'string' ? data.classroom.trim() : '';
+        const onlineClassroom =
+          typeof data.onlineClassroom === 'string'
+            ? data.onlineClassroom.trim()
+            : '';
+        if (location.length > 140)
+          throw new WorkflowError(
+            'Campus / location must be 140 characters or fewer.',
+          );
         if (classroom.length > 100)
           throw new WorkflowError(
             'Classroom / room must be 100 characters or fewer.',
+          );
+        if (onlineClassroom.length > 300)
+          throw new WorkflowError(
+            'Online classroom / LMS reference must be 300 characters or fewer.',
+          );
+        if (deliveryMode === 'classroom' && (!location || !classroom))
+          throw new WorkflowError(
+            'Classroom sections require both a campus / location and a classroom / room.',
+          );
+        if (deliveryMode === 'online' && !onlineClassroom)
+          throw new WorkflowError(
+            'Online sections require an online classroom / LMS reference.',
+          );
+        if (
+          deliveryMode === 'hybrid' &&
+          (!location || !classroom || !onlineClassroom)
+        )
+          throw new WorkflowError(
+            'Hybrid sections require campus / location, classroom / room, and an online classroom / LMS reference.',
           );
         result = {
           id: id(),
@@ -692,13 +748,16 @@ export class Operations {
           lecturer_id: data.lecturerId,
           code: text(data.code, 'Section code', 30),
           capacity: integer(data.capacity, 'Capacity', 1, 10000),
-          location: text(data.location, 'Location / delivery mode'),
-          classroom,
+          delivery_mode: deliveryMode,
+          location: deliveryMode === 'online' ? '' : location,
+          classroom: deliveryMode === 'online' ? '' : classroom,
+          online_classroom:
+            deliveryMode === 'classroom' ? '' : onlineClassroom,
           schedule: text(data.schedule, 'Schedule'),
           created_at: now(),
         };
         this.run(
-          'INSERT INTO sections(id,course_id,term_id,lecturer_id,code,capacity,location,classroom,schedule,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+          'INSERT INTO sections(id,course_id,term_id,lecturer_id,code,capacity,delivery_mode,location,classroom,online_classroom,schedule,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
           ...Object.values(result),
         );
       } else if (action === 'sectionSettings') {
@@ -720,16 +779,60 @@ export class Operations {
               '.',
             409,
           );
+        const deliveryMode =
+          typeof data.deliveryMode === 'string'
+            ? data.deliveryMode.trim()
+            : before.delivery_mode || 'classroom';
+        if (!['classroom', 'online', 'hybrid'].includes(deliveryMode))
+          throw new WorkflowError(
+            'Choose Classroom, Online, or Hybrid delivery.',
+          );
+        const location =
+          typeof data.location === 'string'
+            ? data.location.trim()
+            : String(before.location || '').trim();
         const nextClassroom =
-          typeof data.classroom === 'string' ? data.classroom.trim() : '';
+          typeof data.classroom === 'string'
+            ? data.classroom.trim()
+            : String(before.classroom || '').trim();
+        const onlineClassroom =
+          typeof data.onlineClassroom === 'string'
+            ? data.onlineClassroom.trim()
+            : String(before.online_classroom || '').trim();
+        if (location.length > 140)
+          throw new WorkflowError(
+            'Campus / location must be 140 characters or fewer.',
+          );
         if (nextClassroom.length > 100)
           throw new WorkflowError(
             'Classroom / room must be 100 characters or fewer.',
           );
+        if (onlineClassroom.length > 300)
+          throw new WorkflowError(
+            'Online classroom / LMS reference must be 300 characters or fewer.',
+          );
+        if (deliveryMode === 'classroom' && (!location || !nextClassroom))
+          throw new WorkflowError(
+            'Classroom sections require both a campus / location and a classroom / room.',
+          );
+        if (deliveryMode === 'online' && !onlineClassroom)
+          throw new WorkflowError(
+            'Online sections require an online classroom / LMS reference.',
+          );
+        if (
+          deliveryMode === 'hybrid' &&
+          (!location || !nextClassroom || !onlineClassroom)
+        )
+          throw new WorkflowError(
+            'Hybrid sections require campus / location, classroom / room, and an online classroom / LMS reference.',
+          );
         this.run(
-          'UPDATE sections SET capacity=?,classroom=? WHERE id=?',
+          'UPDATE sections SET capacity=?,delivery_mode=?,location=?,classroom=?,online_classroom=? WHERE id=?',
           capacity,
-          nextClassroom,
+          deliveryMode,
+          deliveryMode === 'online' ? '' : location,
+          deliveryMode === 'online' ? '' : nextClassroom,
+          deliveryMode === 'classroom' ? '' : onlineClassroom,
           before.id,
         );
         result = {

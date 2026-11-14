@@ -13,8 +13,11 @@ test('staff and students see dedicated classroom information for course sections
  assert.match(admin,/sectionSettings/);
  assert.match(admin,/Save changes/);
  assert.match(board,/Classroom TBA/);
+ assert.match(board,/Online access available after enrollment/);
  assert.match(board,/section\.classroom/);
  assert.match(cart,/Classroom TBA/);
  assert.match(operations,/ALTER TABLE sections ADD COLUMN classroom/);
+ assert.match(operations,/ALTER TABLE sections ADD COLUMN delivery_mode/);
+ assert.match(operations,/ALTER TABLE sections ADD COLUMN online_classroom/);
  assert.match(operations,/action === 'sectionSettings'/);
 });
