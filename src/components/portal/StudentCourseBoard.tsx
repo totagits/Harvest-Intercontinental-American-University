@@ -97,8 +97,9 @@ export const StudentCourseBoard:React.FC<{currentUser:UserProfile;onOpenStudentW
     <div className="mt-4 rounded-xl border border-[#E6DCE7] bg-[#FAF8FB] p-4">
      <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h3 className="flex items-center gap-2 font-bold text-[#4A1249]"><ShoppingCart className="h-5 w-5"/>My Add/Drop Cart</h3>
-       <p className="mt-1 text-xs text-slate-600">{addIds.length} course addition{addIds.length===1?'':'s'} selected from the Course Board · {dropIds.length} current course drop{dropIds.length===1?'':'s'} selected in Student Workspace.</p></div>
-      <button type="button" onClick={onOpenStudentWorkspace} className="hiau-finance-primary rounded-lg px-4 py-2 text-sm font-semibold">Review Add/Drop Cart</button>
+       <p className="mt-1 text-xs text-slate-600">{addIds.length} course addition{addIds.length===1?'':'s'} selected from the Course Board · {dropIds.length} current course drop{dropIds.length===1?'':'s'} selected in Student Workspace.</p>
+       {(addIds.length>0||dropIds.length>0)&&<p className="mt-2 inline-flex rounded-full border border-[#E5D3A6] bg-[#FFF9EA] px-3 py-1 text-xs font-bold text-[#6F4F16]">Cart only — not yet submitted to Registrar</p>}</div>
+      <button type="button" onClick={onOpenStudentWorkspace} className="hiau-finance-primary rounded-lg px-4 py-2 text-sm font-semibold">Review & submit Add/Drop request</button>
      </div>
      {selectedSections.length>0&&<div className="mt-3 flex flex-wrap gap-2">{selectedSections.map(s=><span key={s.id} className="rounded-full border border-[#D8C8DC] bg-white px-3 py-1 text-xs font-semibold">{s.course_code} · {s.credits} cr.</span>)}</div>}
     </div>
