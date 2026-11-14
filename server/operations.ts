@@ -115,7 +115,7 @@ export class Operations {
       CREATE TABLE IF NOT EXISTS courses(id TEXT PRIMARY KEY,code TEXT UNIQUE NOT NULL,title TEXT NOT NULL,credits INTEGER NOT NULL CHECK(credits>0),fee_cents INTEGER NOT NULL CHECK(fee_cents>=0),created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS course_prerequisites(course_id TEXT NOT NULL REFERENCES courses(id),requires_id TEXT NOT NULL REFERENCES courses(id),PRIMARY KEY(course_id,requires_id),CHECK(course_id<>requires_id));
       CREATE TABLE IF NOT EXISTS program_requirements(program_id TEXT NOT NULL REFERENCES programs(id),course_id TEXT NOT NULL REFERENCES courses(id),PRIMARY KEY(program_id,course_id));
-      CREATE TABLE IF NOT EXISTS sections(id TEXT PRIMARY KEY,course_id TEXT NOT NULL REFERENCES courses(id),term_id TEXT NOT NULL REFERENCES terms(id),lecturer_id TEXT NOT NULL REFERENCES users(id),code TEXT NOT NULL,capacity INTEGER NOT NULL CHECK(capacity>0),location TEXT NOT NULL,schedule TEXT NOT NULL,created_at TEXT NOT NULL,UNIQUE(course_id,term_id,code));
+      CREATE TABLE IF NOT EXISTS sections(id TEXT PRIMARY KEY,course_id TEXT NOT NULL REFERENCES courses(id),term_id TEXT NOT NULL REFERENCES terms(id),lecturer_id TEXT NOT NULL REFERENCES users(id),code TEXT NOT NULL,capacity INTEGER NOT NULL CHECK(capacity>0),location TEXT NOT NULL,classroom TEXT NOT NULL DEFAULT '',schedule TEXT NOT NULL,created_at TEXT NOT NULL,UNIQUE(course_id,term_id,code));
       CREATE TABLE IF NOT EXISTS applications(id TEXT PRIMARY KEY,number TEXT UNIQUE NOT NULL,full_name TEXT NOT NULL,email TEXT NOT NULL,phone TEXT NOT NULL DEFAULT '',program_id TEXT NOT NULL REFERENCES programs(id),status TEXT NOT NULL CHECK(status IN('submitted','under_review','approved','rejected','admitted')),decision_note TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS students(id TEXT PRIMARY KEY,user_id TEXT UNIQUE REFERENCES users(id),application_id TEXT UNIQUE NOT NULL REFERENCES applications(id),student_number TEXT UNIQUE NOT NULL,full_name TEXT NOT NULL,email TEXT UNIQUE NOT NULL COLLATE NOCASE,program_id TEXT NOT NULL REFERENCES programs(id),admitted_term_id TEXT NOT NULL REFERENCES terms(id),status TEXT NOT NULL CHECK(status IN('active','on_leave','graduated')),financial_hold INTEGER NOT NULL DEFAULT 0 CHECK(financial_hold IN(0,1)),created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS registrations(id TEXT PRIMARY KEY,student_id TEXT NOT NULL REFERENCES students(id),section_id TEXT NOT NULL REFERENCES sections(id),status TEXT NOT NULL CHECK(status IN('enrolled','dropped')),created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
@@ -364,6 +364,9 @@ export class Operations {
       CREATE INDEX IF NOT EXISTS partner_event_regs_user
         ON institutional_partner_event_registrations(user_id,status);
       INSERT OR IGNORE INTO migrations VALUES(1,datetime('now'));`);
+    const sectionColumns = this.sql.prepare('PRAGMA table_info(sections)').all() as any[];
+    if (!sectionColumns.some((column: any) => column.name === 'classroom'))
+      this.sql.exec("ALTER TABLE sections ADD COLUMN classroom TEXT NOT NULL DEFAULT ''");
   }
   all(query: string, ...parameters: any[]): any[] {
     return this.sql.prepare(query).all(...parameters) as any[];
@@ -676,6 +679,12 @@ export class Operations {
           !['lecturer', 'dean', 'super_admin'].includes(lecturer.role)
         )
           throw new WorkflowError('Choose a faculty account.');
+        const classroom =
+          typeof data.classroom === 'string' ? data.classroom.trim() : '';
+        if (classroom.length > 100)
+          throw new WorkflowError(
+            'Classroom / room must be 100 characters or fewer.',
+          );
         result = {
           id: id(),
           course_id: data.courseId,
@@ -683,14 +692,50 @@ export class Operations {
           lecturer_id: data.lecturerId,
           code: text(data.code, 'Section code', 30),
           capacity: integer(data.capacity, 'Capacity', 1, 10000),
-          location: text(data.location, 'Location'),
+          location: text(data.location, 'Location / delivery mode'),
+          classroom,
           schedule: text(data.schedule, 'Schedule'),
           created_at: now(),
         };
         this.run(
-          'INSERT INTO sections VALUES(?,?,?,?,?,?,?,?,?)',
+          'INSERT INTO sections(id,course_id,term_id,lecturer_id,code,capacity,location,classroom,schedule,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
           ...Object.values(result),
         );
+      } else if (action === 'sectionSettings') {
+        this.permitted(actor, ['registrar']);
+        before = this.one('SELECT * FROM sections WHERE id=?', data.id);
+        if (!before)
+          throw new WorkflowError('Course section not found.', 404);
+        const enrolled = this.one(
+          "SELECT COUNT(*) AS n FROM registrations WHERE section_id=? AND status='enrolled'",
+          before.id,
+        ).n;
+        const capacity = integer(data.capacity, 'Capacity', 1, 10000);
+        if (capacity < enrolled)
+          throw new WorkflowError(
+            'Capacity cannot be reduced below the current enrollment of ' +
+              enrolled +
+              ' student' +
+              (enrolled === 1 ? '' : 's') +
+              '.',
+            409,
+          );
+        const nextClassroom =
+          typeof data.classroom === 'string' ? data.classroom.trim() : '';
+        if (nextClassroom.length > 100)
+          throw new WorkflowError(
+            'Classroom / room must be 100 characters or fewer.',
+          );
+        this.run(
+          'UPDATE sections SET capacity=?,classroom=? WHERE id=?',
+          capacity,
+          nextClassroom,
+          before.id,
+        );
+        result = {
+          ...this.one('SELECT * FROM sections WHERE id=?', before.id),
+          enrolled,
+        };
       } else if (action === 'sectionCapacity') {
         this.permitted(actor, ['registrar']);
         before = this.one('SELECT * FROM sections WHERE id=?', data.id);
