@@ -110,6 +110,8 @@ export function installStudentAddDrop(app:Express,store:Operations){
   const remaining=current.filter((r:any)=>!dropSet.has(r.registration_id));
   const courseIds=new Set(remaining.map((r:any)=>r.course_id));
   for(const section of additions){
+   if(!store.one('SELECT 1 AS ok FROM program_requirements WHERE program_id=? AND course_id=?',student.program_id,section.course_id))
+    return {error:`${section.course_code} is not currently approved for this student's academic program.`};
    if(courseIds.has(section.course_id))return {error:'The resulting schedule cannot contain duplicate registrations for the same course.'};
    courseIds.add(section.course_id);
    const enrolled=store.one("SELECT COUNT(*) AS n FROM registrations WHERE section_id=? AND status='enrolled'",section.id);
@@ -146,10 +148,11 @@ export function installStudentAddDrop(app:Express,store:Operations){
    const sections=store.all(`SELECT s.id,s.term_id,s.code,s.capacity,s.location,s.schedule,s.lecturer_id,
       c.id AS course_id,c.code AS course_code,c.title AS course_title,c.credits,
       u.name AS lecturer_name,
-      (SELECT COUNT(*) FROM registrations r WHERE r.section_id=s.id AND r.status='enrolled') AS enrolled_count
+      (SELECT COUNT(*) FROM registrations r WHERE r.section_id=s.id AND r.status='enrolled') AS enrolled_count,
+      EXISTS(SELECT 1 FROM program_requirements pr WHERE pr.program_id=? AND pr.course_id=c.id) AS program_eligible
     FROM sections s JOIN courses c ON c.id=s.course_id JOIN terms t ON t.id=s.term_id
     LEFT JOIN users u ON u.id=s.lecturer_id
-    WHERE t.status='open' ORDER BY c.code,s.code`);
+    WHERE t.status='open' ORDER BY c.code,s.code`,student.program_id);
    const registrations=store.all(`SELECT r.id AS registration_id,r.section_id,s.term_id,c.id AS course_id,
       c.code AS course_code,c.title AS course_title,c.credits,s.schedule,s.location,u.name AS lecturer_name
     FROM registrations r JOIN sections s ON s.id=r.section_id JOIN courses c ON c.id=s.course_id
