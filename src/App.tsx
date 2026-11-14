@@ -572,6 +572,7 @@ export default function App() {
                 <StudentCoursePlanning currentUser={currentUser} />
                 <StudentFinancialStatement currentUser={currentUser} />
                 <StudentAssistanceRequests currentUser={currentUser} />
+                <StudentAddDropWorkflow currentUser={currentUser} mode="student" />
               </>
             )}
 
@@ -586,6 +587,7 @@ export default function App() {
                 <RegistrarStudentLinking currentUser={currentUser} />
                 <StudentAssistanceRequests currentUser={currentUser} />
                 <StudentCoursePlanning currentUser={currentUser} />
+                <StudentAddDropWorkflow currentUser={currentUser} mode="registrar" />
               </>
             )}
 
@@ -595,6 +597,7 @@ export default function App() {
                 <FinanceRegistrationHandoff currentUser={currentUser} />
                 <StudentAssistanceRequests currentUser={currentUser} />
                 <FinancePaymentWorkflow currentUser={currentUser} />
+                <StudentAddDropWorkflow currentUser={currentUser} mode="finance" />
               </>
             )}
 
