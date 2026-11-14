@@ -6,6 +6,7 @@ import {actorOf} from './identity';
 import {sectionSetupComplete,sectionSetupIssue} from './sectionDelivery';
 
 const now=()=>new Date().toISOString();
+const today=()=>new Date().toISOString().slice(0,10);
 type PlanStatus='draft'|'submitted'|'returned'|'approved'|'rejected';
 const states=new Set<PlanStatus>(['draft','submitted','returned','approved','rejected']);
 const numberPattern=/^[a-f0-9-]{36}$/i;
@@ -38,6 +39,8 @@ export function installStudentPlanning(app:Express,store:Operations){
       return 'Select one to twenty unique term sections.';
     const term=store.one('SELECT * FROM terms WHERE id=?',termId);
     if(!term||term.status!=='open')return 'Course planning is not open for this term.';
+    const registrationClose=store.one('SELECT value FROM settings WHERE key=?','term_registration_close_'+term.id)?.value||term.end_date;
+    if(today()>registrationClose)return `Registration closed on ${registrationClose}. Course planning and registration changes are no longer permitted.`;
     if(student.status!=='active'||student.financial_hold)return 'Student must be active without an academic finance hold.';
     const placeholders=sectionIds.map(()=>'?').join(',');
     const sections=store.all(`SELECT s.*,c.credits,c.code AS course_code,t.max_credits
@@ -78,7 +81,11 @@ export function installStudentPlanning(app:Express,store:Operations){
       const plans=store.all(`SELECT p.*,x.created_at AS committed_at
         FROM student_course_plans p LEFT JOIN student_course_plan_commits x ON x.plan_id=p.id
         WHERE p.student_id=? ORDER BY p.updated_at DESC`,record.id).map(inspect);
-      const terms=store.all("SELECT id,title,status,max_credits FROM terms WHERE status='open' ORDER BY start_date");
+      const terms=store.all("SELECT id,title,status,max_credits,start_date,end_date FROM terms WHERE status='open' ORDER BY start_date")
+        .map((term:any)=>{
+          const registration_close_date=store.one('SELECT value FROM settings WHERE key=?','term_registration_close_'+term.id)?.value||term.end_date;
+          return {...term,registration_close_date,registration_closed:today()>registration_close_date};
+        });
       const sections=store.all(`SELECT s.*,c.code AS course_code,c.title AS course_title,c.credits
         FROM sections s JOIN terms t ON t.id=s.term_id JOIN courses c ON c.id=s.course_id WHERE t.status='open'`)
         .filter((section:any)=>sectionSetupComplete(section));
