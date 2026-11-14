@@ -12,6 +12,21 @@ type Section={
 };
 type State={terms:Term[];courses:Course[];users:Staff[];sections:Section[]};
 
+const setupIssue=(mode:'classroom'|'online'|'hybrid',location:string,classroom:string,online:string)=>{
+ const missing:string[]=[];
+ if(mode==='classroom'){
+  if(!location.trim())missing.push('campus / location');
+  if(!classroom.trim())missing.push('classroom / room');
+ }else if(mode==='online'){
+  if(!online.trim())missing.push('online classroom / LMS reference');
+ }else{
+  if(!location.trim())missing.push('campus / location');
+  if(!classroom.trim())missing.push('classroom / room');
+  if(!online.trim())missing.push('online classroom / LMS reference');
+ }
+ return missing.length?('Missing '+missing.join(', ')+'.'):'';
+};
+
 async function csrf(){
  const r=await fetch('/api/auth/me',{credentials:'same-origin',cache:'no-store'});
  const d=await r.json().catch(()=>({}));
@@ -181,8 +196,8 @@ export const CourseSectionManagement:React.FC<{currentUser:UserProfile}>=({curre
   </div>
 
   <div className="rounded-xl border border-[#E6DCE7] p-4">
-   <div className="flex flex-wrap items-end justify-between gap-3"><div><h3 className="flex items-center gap-2 font-bold text-[#4A1249]"><Users className="h-5 w-5"/>Published & scheduled sections</h3>
-    <p className="mt-1 text-xs text-slate-600">Capacity may be increased or reduced, but never below current enrollment. Delivery mode controls whether physical classroom, online classroom, or both are required.</p></div>
+   <div className="flex flex-wrap items-end justify-between gap-3"><div><h3 className="flex items-center gap-2 font-bold text-[#4A1249]"><Users className="h-5 w-5"/>Course sections & publication readiness</h3>
+    <p className="mt-1 text-xs text-slate-600">A section must have all delivery-mode requirements completed before students can request it. Capacity may be changed, but never below current enrollment.</p></div>
     <span className="text-xs font-semibold text-slate-500">{sections.length} section{sections.length===1?'':'s'}</span></div>
    {!sections.length?<p className="mt-4 text-sm text-slate-600">No sections have been created yet.</p>:
    <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[1500px] text-left text-sm">
@@ -206,8 +221,11 @@ export const CourseSectionManagement:React.FC<{currentUser:UserProfile}>=({curre
      const unchanged=Number(draft)===Number(section.capacity)&&modeDraft===(section.delivery_mode||'classroom')&&
       locationDraft.trim()===(section.location||'').trim()&&classroomDraft.trim()===(section.classroom||'').trim()&&
       onlineDraft.trim()===(section.online_classroom||'').trim();
-     return <tr key={section.id}>
-      <td className="px-3 py-3"><strong>{section.course_code}</strong> · {section.course_title}<br/><span className="text-xs text-slate-500">Section {section.code}</span></td>
+     const savedIssue=setupIssue(section.delivery_mode||'classroom',section.location||'',section.classroom||'',section.online_classroom||'');
+     return <tr key={section.id} className={savedIssue?'bg-[#FFF9EA]':''}>
+      <td className="px-3 py-3"><strong>{section.course_code}</strong> · {section.course_title}<br/><span className="text-xs text-slate-500">Section {section.code}</span>
+       {savedIssue?<div className="mt-2 rounded border border-[#E5D3A6] bg-[#FFF6E2] px-2 py-1 text-xs font-semibold text-[#7A5413]">Setup incomplete — {savedIssue} Students cannot request this section.</div>:
+        <div className="mt-2 text-xs font-semibold text-[#4A1249]">Ready for student requests</div>}</td>
       <td className="px-3 py-3">{section.term_title}<br/><span className="text-xs font-semibold text-[#8B5C1C]">{section.term_status}</span></td>
       <td className="px-3 py-3">{section.lecturer_name}</td>
       <td className="px-3 py-3">{section.schedule}</td>
