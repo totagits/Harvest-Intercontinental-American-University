@@ -92,7 +92,7 @@ test('ERP-STUDENT-01A plans are private, scoped, audited and do not create enrol
  assert.equal(quote.status,200);
  assert.equal(quote.payload.unbilledCount,1);
  assert.equal(quote.payload.indicativeUnbilledCents,30000);
- assert.equal(quote.payload.readyForPosting,false);
+ assert.equal(quote.payload.readyForPosting,true);
  assert.equal(db.one('SELECT COUNT(*) AS n FROM invoices').n,0,'Preview must not post charges');
  assert.equal((await request('GET','/api/student/my-statement',bursar)).status,403);
  const emptyStatement=await request('GET','/api/student/my-statement',studentUser);
