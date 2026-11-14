@@ -740,6 +740,11 @@ export class Operations {
         this.permitted(actor, ['registrar']);
         before = this.one('SELECT * FROM terms WHERE id=?', data.id);
         if (!before) throw new WorkflowError('Academic term not found.', 404);
+        before = {
+          ...before,
+          registration_close_date:
+            this.one('SELECT close_date FROM term_registration_deadlines WHERE term_id=?', before.id)?.close_date || before.end_date,
+        };
         const registrationClose = day(data.registrationCloseDate, 'Registration / Add-Drop closing date');
         if (registrationClose < before.start_date || registrationClose > before.end_date)
           throw new WorkflowError('Registration / Add-Drop closing date must fall within the academic term.');
