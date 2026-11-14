@@ -40,7 +40,8 @@ test('finance-reviewed assistance posts one audited invoice credit and reduces b
 
  const app=express();
  app.use(express.json());
- app.use((_req,res,next)=>{res.locals.actor={id:adminId,email:'finance@hiau.example',name:'Finance Administrator',role:'super_admin',title:''};next();});
+ let actor:any={id:adminId,email:'finance@hiau.example',name:'Finance Administrator',role:'super_admin',title:''};
+ app.use((_req,res,next)=>{res.locals.actor=actor;next();});
  installStudentAssistance(app,store);
  const server=app.listen(0,'127.0.0.1');
  await new Promise<void>(resolve=>server.once('listening',resolve));
@@ -60,6 +61,19 @@ test('finance-reviewed assistance posts one audited invoice credit and reduces b
   assert.equal(store.balance(studentId),25000);
   assert.equal(store.one('SELECT COUNT(*) AS n FROM student_assistance_awards WHERE request_id=?',requestId).n,1);
   assert.equal(store.one("SELECT COUNT(*) AS n FROM audit WHERE action='ASSISTANCE_AWARD_POSTED'").n,1);
+
+  actor={id:studentUserId,email:'michael.staging@example.com',name:'MICHAEL GWOAH',role:'student',title:''};
+  let view=await fetch(base+'/api/student/assistance');
+  let viewData:any=await view.json();
+  assert.equal(view.status,200);
+  assert.equal(viewData.requests[0].status,'posted');
+  assert.equal(viewData.requests[0].award.amount_cents,20000);
+
+  actor={id:adminId,email:'finance@hiau.example',name:'Finance Administrator',role:'super_admin',title:''};
+  view=await fetch(base+'/api/student/assistance');
+  viewData=await view.json();
+  assert.equal(view.status,200);
+  assert.equal(viewData.requests.length,0);
 
   const duplicate=await fetch(base+'/api/student/assistance/'+requestId+'/award',{
    method:'POST',headers:{'content-type':'application/json'},

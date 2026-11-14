@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Activity, RefreshCw } from 'lucide-react';
 
-type StudentEvent = { id: string; action: 'register'|'drop'|'graduationRequest'|'transcriptRequest'; created_at: string };
+type StudentEvent = { id: string; action: 'register'|'drop'|'graduationRequest'|'transcriptRequest'|'ADD_DROP_SUBMITTED'; created_at: string };
 const labels: Record<StudentEvent['action'],string> = {
   register: 'Submitted course registration',
   drop: 'Updated course enrollment',
   graduationRequest: 'Requested graduation review',
   transcriptRequest: 'Requested an academic transcript',
+  ADD_DROP_SUBMITTED: 'Submitted an Add/Drop request to the Registrar',
 };
 
 export const StudentActivityTimeline: React.FC = () => {
