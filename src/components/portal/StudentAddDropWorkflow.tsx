@@ -93,6 +93,7 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
  const submit=async()=>{
   if(busy)return;setBusy(true);setError('');setMessage('');
   try{
+   await saveStudentCart(adds,drops,reason);
    const r=await post('/api/student/add-drop',{termId,addSectionIds:adds,dropRegistrationIds:drops,reason});
    setMessage('Add/Drop request submitted for Registrar review. No registration or billing change has occurred yet.');
    setAdds([]);setDrops([]);setReason('');await load();
@@ -169,7 +170,6 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
     <p className="mt-2 text-sm">Current credits: <strong>{currentCredits}</strong> · Add: <strong>{addedCredits}</strong> · Drop: <strong>{droppedCredits}</strong> · Resulting credits: <strong>{resultingCredits}</strong></p>
     {resultingCredits>0&&resultingCredits<12&&<p className="mt-2 rounded border border-[#E5D3A6] bg-[#FFF9EA] p-3 text-xs text-[#6F4F16]">This change would leave fewer than 12 credits. The Registrar must review the underload impact before committing it.</p>}
     <label className="mt-3 block text-sm font-semibold">Reason for Add/Drop<textarea value={reason} onChange={e=>setReason(e.target.value)}
-     onBlur={()=>void saveStudentCart(adds,drops,reason).catch(e=>setError(e instanceof Error?e.message:'The Add/Drop cart reason could not be saved.'))}
      rows={3} maxLength={1000} className="mt-1 block w-full rounded-lg border border-[#D8C8DC] bg-white p-2.5" placeholder="Explain the requested registration change (minimum 20 characters)"/></label>
     <button disabled={busy||(!adds.length&&!drops.length)||reason.trim().length<20} onClick={()=>void submit()} className="hiau-finance-primary mt-3 rounded-lg px-4 py-2.5 text-sm font-bold">Submit Add/Drop request to Registrar</button>
    </div>
