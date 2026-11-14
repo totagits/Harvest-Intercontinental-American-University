@@ -72,7 +72,7 @@ export const StudentAssistanceRequests:React.FC<{currentUser:UserProfile}>=({cur
   <h2 className="text-lg font-bold text-[#4A1249]">Scholarships, Financial Aid & Tuition Waivers</h2>
   <p className="mt-2 text-sm text-slate-600">Requests and reviews only. An institutional award, fee reduction or financial credit requires a separate authorized posting process.</p>
   {error&&<p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
-  {message&&<p role="status" className="mt-3 text-sm text-green-800">{message}</p>}
+  {message&&<p role="status" className="mt-3 text-sm font-medium text-[#4A1249]">{message}</p>}
   {isStudent&&(!linked?<p className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm">Registrar-linked admission record required before applying.</p>:
    <div className="mt-4 grid gap-3 sm:grid-cols-2">
     <label className="text-sm font-semibold">Academic term<select value={termId} onChange={e=>setTermId(e.target.value)} className="mt-1 block w-full rounded border p-2">
@@ -96,7 +96,7 @@ export const StudentAssistanceRequests:React.FC<{currentUser:UserProfile}>=({cur
     <p className="mt-2 whitespace-pre-wrap text-slate-700">{item.reason}</p>
     {item.registrar_note&&<p className="mt-2 text-slate-600">Academic review: {item.registrar_note}</p>}
     {item.finance_note&&<p className="mt-2 text-slate-600">Finance review: {item.finance_note}</p>}
-    {item.award&&<p className="mt-2 font-semibold text-green-800">Posted {item.kind.replaceAll('_',' ')} credit: {amount(item.award.amount_cents)} · {item.award.invoice_number}</p>}
+    {item.award&&<p className="mt-2 font-semibold text-[#4A1249]">Posted {item.kind.replaceAll('_',' ')} credit: {amount(item.award.amount_cents)} · {item.award.invoice_number}</p>}
     {!isStudent&&<div className="mt-3 space-y-2">
      <label className="block font-semibold">Review reason<textarea rows={2} maxLength={1200}
        value={notes[item.id]||''} onChange={e=>setNotes(v=>({...v,[item.id]:e.target.value}))}
