@@ -53,6 +53,7 @@ import { PrintableDocumentModal } from './components/portal/PrintableDocumentMod
 import { PortalThemeSettingsModal } from './components/portal/PortalThemeSettingsModal';
 import { PortalQuickActionsMenu } from './components/portal/PortalQuickActionsMenu';
 import { VirtualClassroomCollab } from './components/portal/VirtualClassroomCollab';
+import { AccountCenter } from './components/portal/AccountCenter';
 
 import { UserProfile, StudentProfileData, StudentRegistrationItem, FinancialAccount } from './types';
 import { api } from './services/api';
@@ -596,6 +597,9 @@ export default function App() {
 
             {activePortalTab === 'compliance' && (
               <PolicyComplianceRegister currentUser={currentUser} />
+            )}
+            {activePortalTab === 'accounts' && (
+              <AccountCenter user={currentUser} />
             )}
             </>}
             </main>
