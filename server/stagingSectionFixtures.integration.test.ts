@@ -29,7 +29,7 @@ test('staging acceptance sections receive complete delivery fixtures exactly onc
   const courseId=crypto.randomUUID();
   db.prepare('INSERT INTO courses VALUES(?,?,?,?,?,?)').run(courseId,code,'Fixture '+code,3,15000,stamp);
   db.prepare('INSERT INTO sections VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').run(
-   crypto.randomUUID(),courseId,termId,'legacy-faculty','A',index===3?20:30,'hybrid','HIAU Staging','','','TBA',stamp
+   crypto.randomUUID(),courseId,termId,'legacy-faculty','A',index===3?20:30,'hybrid','HIAU Staging','TBA','TBA','TBA',stamp
   );
  }
  db.close();
@@ -44,7 +44,7 @@ test('staging acceptance sections receive complete delivery fixtures exactly onc
   ['STG-103','hybrid','HIAU Staging','Room 103','HIAU Online Classroom — STG-103'],
   ['STG-104','hybrid','HIAU Staging','Room 104','HIAU Online Classroom — STG-104'],
  ]);
- assert.ok(store.one("SELECT value FROM settings WHERE key='staging_section_delivery_fixtures_v1'"));
+ assert.ok(store.one("SELECT value FROM settings WHERE key='staging_section_delivery_fixtures_v2'"));
  assert.ok(store.one("SELECT id FROM audit WHERE action='STAGING_SECTION_DELIVERY_FIXTURES'"));
  store.run(`UPDATE sections SET classroom='Custom Collaboration Lab',online_classroom='Custom LMS Space'
   WHERE course_id=(SELECT id FROM courses WHERE code='STG-104')`);
