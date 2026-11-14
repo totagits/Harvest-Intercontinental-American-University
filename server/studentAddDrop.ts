@@ -54,6 +54,10 @@ export function installStudentAddDrop(app:Express,store:Operations){
  };
  const registrar=(res:Response)=>['super_admin','registrar'].includes(actorOf(res)?.role||'');
  const finance=(res:Response)=>['super_admin','bursar','registrar'].includes(actorOf(res)?.role||'');
+ const withDeadline=(term:any)=>term?({
+  ...term,
+  registration_close_date:store.one('SELECT value FROM settings WHERE key=?','term_registration_close_'+term.id)?.value||term.end_date,
+ }):term;
 
  const ensureStagingSection=(req:Request,res:Response)=>{
   const host=String(req.hostname||req.get('host')||'').toLowerCase().split(':')[0];
@@ -87,7 +91,7 @@ export function installStudentAddDrop(app:Express,store:Operations){
     !addIds.every(id=>uuid.test(id))||!dropIds.every(id=>uuid.test(id))||
     new Set(addIds).size!==addIds.length||new Set(dropIds).size!==dropIds.length)
    return {error:'Choose valid unique course additions or drops.'};
-  const term=store.one('SELECT * FROM terms WHERE id=?',termId);
+  const term=withDeadline(store.one('SELECT * FROM terms WHERE id=?',termId));
   if(!term||term.status!=='open')return {error:'Add/Drop is not open for this academic term.'};
   if(term.registration_close_date&&today()>term.registration_close_date)
    return {error:`Registration and Add/Drop closed on ${term.registration_close_date}. No student Add/Drop request can be submitted or committed after the deadline.`};
@@ -150,7 +154,8 @@ export function installStudentAddDrop(app:Express,store:Operations){
   if(actor.role==='student'){
    const student=studentFor(res);
    if(!student)return res.json({linked:false,terms:[],sections:[],registrations:[],requests:[]});
-   const terms=store.all("SELECT id,title,status,max_credits,start_date,end_date,registration_close_date FROM terms WHERE status='open' ORDER BY start_date")
+   const terms=store.all("SELECT id,title,status,max_credits,start_date,end_date FROM terms WHERE status='open' ORDER BY start_date")
+    .map((term:any)=>withDeadline(term))
     .map((term:any)=>({...term,registration_closed:!!term.registration_close_date&&today()>term.registration_close_date}));
    const sectionRows=store.all(`SELECT s.id,s.term_id,s.code,s.capacity,s.delivery_mode,s.location,s.classroom,
       CASE WHEN EXISTS(
@@ -214,7 +219,7 @@ export function installStudentAddDrop(app:Express,store:Operations){
      !dropIds.every((id:any)=>typeof id==='string'&&uuid.test(id))||
      new Set(addIds).size!==addIds.length||new Set(dropIds).size!==dropIds.length||reason.length>1000)
     return res.status(400).json({error:'Choose valid Add/Drop cart items.'});
-  const term=store.one("SELECT * FROM terms WHERE id=? AND status='open'",termId);
+  const term=withDeadline(store.one("SELECT * FROM terms WHERE id=? AND status='open'",termId));
   if(!term)return res.status(409).json({error:'The selected academic term is not open.'});
   if((addIds.length||dropIds.length)&&term.registration_close_date&&today()>term.registration_close_date)
    return res.status(409).json({error:`Registration and Add/Drop closed on ${term.registration_close_date}.`});
