@@ -211,11 +211,12 @@ export function installStudentPlanning(app:Express,store:Operations){
           a.created_at,'assistance_award' AS source
           FROM student_assistance_awards a WHERE a.invoice_id=?`,invoice.id),
       ].sort((a:any,b:any)=>String(a.created_at).localeCompare(String(b.created_at)));
-      const payments=store.all(`SELECT p.reference,p.amount_cents,p.method,p.received_date,
-        p.status FROM payments p WHERE p.invoice_id=? ORDER BY p.received_date`,invoice.id);
+      const payments=store.all(`SELECT p.id,p.reference,p.amount_cents,p.method,p.received_date,
+        p.status,p.reviewed_at,p.review_note,p.created_at
+        FROM payments p WHERE p.invoice_id=? ORDER BY p.received_date,p.created_at`,invoice.id);
       return {...invoice,lines,credits,payments,balance_cents:store.invoiceBalance(invoice.id)};
     });
-    return res.json({linked:true,studentNumber:student.student_number,currency:'USD',
+    return res.json({linked:true,studentNumber:student.student_number,studentName:student.full_name,currency:'USD',
       invoices,totalBalanceCents:store.balance(student.id)});
   });
   app.post('/api/student/course-plans/:id/register',express.json({limit:'4kb'}),(req,res)=>{
