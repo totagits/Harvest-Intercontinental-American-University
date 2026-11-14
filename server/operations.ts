@@ -113,7 +113,7 @@ export class Operations {
       CREATE TABLE IF NOT EXISTS migrations(version INTEGER PRIMARY KEY,applied_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL COLLATE NOCASE,name TEXT NOT NULL,role TEXT NOT NULL,title TEXT NOT NULL DEFAULT '',department TEXT NOT NULL DEFAULT '');
       CREATE TABLE IF NOT EXISTS programs(id TEXT PRIMARY KEY,code TEXT UNIQUE NOT NULL,title TEXT NOT NULL,required_credits INTEGER NOT NULL CHECK(required_credits>0),created_at TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS terms(id TEXT PRIMARY KEY,code TEXT UNIQUE NOT NULL,title TEXT NOT NULL,start_date TEXT NOT NULL,end_date TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN('draft','open','closed')),max_credits INTEGER NOT NULL CHECK(max_credits>0),created_at TEXT NOT NULL,registration_close_date TEXT NOT NULL DEFAULT '');
+      CREATE TABLE IF NOT EXISTS terms(id TEXT PRIMARY KEY,code TEXT UNIQUE NOT NULL,title TEXT NOT NULL,start_date TEXT NOT NULL,end_date TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN('draft','open','closed')),max_credits INTEGER NOT NULL CHECK(max_credits>0),created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS courses(id TEXT PRIMARY KEY,code TEXT UNIQUE NOT NULL,title TEXT NOT NULL,credits INTEGER NOT NULL CHECK(credits>0),fee_cents INTEGER NOT NULL CHECK(fee_cents>=0),created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS course_prerequisites(course_id TEXT NOT NULL REFERENCES courses(id),requires_id TEXT NOT NULL REFERENCES courses(id),PRIMARY KEY(course_id,requires_id),CHECK(course_id<>requires_id));
       CREATE TABLE IF NOT EXISTS program_requirements(program_id TEXT NOT NULL REFERENCES programs(id),course_id TEXT NOT NULL REFERENCES courses(id),PRIMARY KEY(program_id,course_id));
@@ -385,13 +385,6 @@ export class Operations {
       CREATE INDEX IF NOT EXISTS partner_event_regs_user
         ON institutional_partner_event_registrations(user_id,status);
       INSERT OR IGNORE INTO migrations VALUES(1,datetime('now'));`);
-    const termColumns = this.sql.prepare('PRAGMA table_info(terms)').all() as any[];
-    if (!termColumns.some((column: any) => column.name === 'registration_close_date')) {
-      this.sql.exec("ALTER TABLE terms ADD COLUMN registration_close_date TEXT NOT NULL DEFAULT ''");
-      this.sql.exec("UPDATE terms SET registration_close_date=end_date WHERE registration_close_date=''");
-    } else {
-      this.sql.exec("UPDATE terms SET registration_close_date=end_date WHERE trim(registration_close_date)=''");
-    }
     let sectionColumns = this.sql.prepare('PRAGMA table_info(sections)').all() as any[];
     if (!sectionColumns.some((column: any) => column.name === 'classroom'))
       this.sql.exec("ALTER TABLE sections ADD COLUMN classroom TEXT NOT NULL DEFAULT ''");
@@ -724,11 +717,15 @@ export class Operations {
           status,
           max_credits: integer(data.maxCredits, 'Credit limit', 1, 60),
           created_at: now(),
-          registration_close_date: registrationClose,
         };
         this.run(
-          'INSERT INTO terms(id,code,title,start_date,end_date,status,max_credits,created_at,registration_close_date) VALUES(?,?,?,?,?,?,?,?,?)',
+          'INSERT INTO terms VALUES(?,?,?,?,?,?,?,?)',
           ...Object.values(result),
+        );
+        this.run(
+          'INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+          'term_registration_close_'+result.id,
+          registrationClose,
         );
       } else if (action === 'termRegistrationDeadline') {
         this.permitted(actor, ['registrar']);
@@ -737,7 +734,11 @@ export class Operations {
         const registrationClose = day(data.registrationCloseDate, 'Registration / Add-Drop closing date');
         if (registrationClose < before.start_date || registrationClose > before.end_date)
           throw new WorkflowError('Registration / Add-Drop closing date must fall within the academic term.');
-        this.run('UPDATE terms SET registration_close_date=? WHERE id=?', registrationClose, before.id);
+        this.run(
+          'INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+          'term_registration_close_'+before.id,
+          registrationClose,
+        );
         result = { ...before, registration_close_date: registrationClose };
       } else if (action === 'termStatus') {
         this.permitted(actor, ['registrar']);
