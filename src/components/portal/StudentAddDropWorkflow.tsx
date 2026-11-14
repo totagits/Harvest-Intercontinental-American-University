@@ -225,7 +225,7 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
      </span>
      <span className="text-slate-500">{reason.length}/1000 characters</span>
     </div>
-    <button disabled={busy||registrationClosed||(!adds.length&&!drops.length)||reason.trim().length<20} onClick={()=>void submit() title={reason.trim().length<20?'Enter at least 20 characters in the reason field before submitting.':undefined} className="hiau-finance-primary mt-3 rounded-lg px-4 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50">Submit Add/Drop request to Registrar</button>
+    <button disabled={busy||registrationClosed||(!adds.length&&!drops.length)||reason.trim().length<20} onClick={()=>void submit()} title={reason.trim().length<20?'Enter at least 20 characters in the reason field before submitting.':undefined} className="hiau-finance-primary mt-3 rounded-lg px-4 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50">Submit Add/Drop request to Registrar</button>
    </div>
 
    <div className="mt-6"><h3 className="font-bold">My Add/Drop requests</h3>{student.requests?.length?<div className="mt-2 space-y-2">{student.requests.map((r:any)=><div key={r.id} className="rounded-lg border border-[#E6DCE7] p-3 text-sm">
