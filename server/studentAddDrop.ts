@@ -6,6 +6,7 @@ import {actorOf} from './identity';
 import {sectionSetupComplete,sectionSetupIssue} from './sectionDelivery';
 
 const now=()=>new Date().toISOString();
+const today=()=>new Date().toISOString().slice(0,10);
 const uuid=/^[a-f0-9-]{36}$/i;
 const STAGING_HOST='hiau-staging.totag.network';
 const parseIds=(value:string)=>{try{const x=JSON.parse(value);return Array.isArray(x)?x.filter(v=>typeof v==='string'):[];}catch{return [];}};
@@ -88,6 +89,8 @@ export function installStudentAddDrop(app:Express,store:Operations){
    return {error:'Choose valid unique course additions or drops.'};
   const term=store.one('SELECT * FROM terms WHERE id=?',termId);
   if(!term||term.status!=='open')return {error:'Add/Drop is not open for this academic term.'};
+  if(term.registration_close_date&&today()>term.registration_close_date)
+   return {error:`Registration and Add/Drop closed on ${term.registration_close_date}. No student Add/Drop request can be submitted or committed after the deadline.`};
   if(student.status!=='active')return {error:'Only an active student can submit Add/Drop changes.'};
   if(addIds.length&&student.financial_hold)return {error:'New course additions are blocked while a financial hold is active.'};
 
@@ -147,7 +150,8 @@ export function installStudentAddDrop(app:Express,store:Operations){
   if(actor.role==='student'){
    const student=studentFor(res);
    if(!student)return res.json({linked:false,terms:[],sections:[],registrations:[],requests:[]});
-   const terms=store.all("SELECT id,title,status,max_credits,start_date,end_date FROM terms WHERE status='open' ORDER BY start_date");
+   const terms=store.all("SELECT id,title,status,max_credits,start_date,end_date,registration_close_date FROM terms WHERE status='open' ORDER BY start_date")
+    .map((term:any)=>({...term,registration_closed:!!term.registration_close_date&&today()>term.registration_close_date}));
    const sectionRows=store.all(`SELECT s.id,s.term_id,s.code,s.capacity,s.delivery_mode,s.location,s.classroom,
       CASE WHEN EXISTS(
         SELECT 1 FROM registrations ownr
@@ -210,8 +214,10 @@ export function installStudentAddDrop(app:Express,store:Operations){
      !dropIds.every((id:any)=>typeof id==='string'&&uuid.test(id))||
      new Set(addIds).size!==addIds.length||new Set(dropIds).size!==dropIds.length||reason.length>1000)
     return res.status(400).json({error:'Choose valid Add/Drop cart items.'});
-  const term=store.one("SELECT id FROM terms WHERE id=? AND status='open'",termId);
+  const term=store.one("SELECT * FROM terms WHERE id=? AND status='open'",termId);
   if(!term)return res.status(409).json({error:'The selected academic term is not open.'});
+  if((addIds.length||dropIds.length)&&term.registration_close_date&&today()>term.registration_close_date)
+   return res.status(409).json({error:`Registration and Add/Drop closed on ${term.registration_close_date}.`});
   if(addIds.length){
     const additions=store.all(`SELECT s.*,c.code AS course_code
       FROM sections s JOIN courses c ON c.id=s.course_id
@@ -296,7 +302,7 @@ export function installStudentAddDrop(app:Express,store:Operations){
     const addIds=parseIds(request.add_section_ids),dropIds=parseIds(request.drop_registration_ids);
     const check=validate(student,request.term_id,addIds,dropIds);
     if('error'in check)return {error:check.error,status:409};
-    let droppedCredit=0;
+    let droppedCredit=0,refundDue=0;
     for(const registrationId of dropIds){
      store.run("UPDATE registrations SET status='dropped',updated_at=? WHERE id=?",now(),registrationId);
      const line=store.one('SELECT * FROM invoice_lines WHERE registration_id=?',registrationId);
@@ -306,6 +312,23 @@ export function installStudentAddDrop(app:Express,store:Operations){
        store.run('INSERT INTO credit_notes VALUES(?,?,?,?,?,?,?)',crypto.randomUUID(),line.invoice_id,registrationId,credit,
         `Add/Drop ${check.refundPercent}% tuition adjustment — ${request.reason}`,actorOf(res)!.id,now());
        droppedCredit+=credit;
+       if(addIds.length===0&&!store.one('SELECT id FROM student_refunds WHERE registration_id=?',registrationId)){
+        const invoice=store.one('SELECT amount_cents FROM invoices WHERE id=?',line.invoice_id);
+        const paid=Number(store.one("SELECT COALESCE(SUM(amount_cents),0) AS n FROM payments WHERE invoice_id=? AND status='reconciled'",line.invoice_id)?.n||0);
+        const assistance=Number(store.one('SELECT COALESCE(SUM(amount_cents),0) AS n FROM student_assistance_awards WHERE invoice_id=?',line.invoice_id)?.n||0);
+        const credits=Number(store.one('SELECT COALESCE(SUM(amount_cents),0) AS n FROM credit_notes WHERE invoice_id=?',line.invoice_id)?.n||0);
+        const reserved=Number(store.one("SELECT COALESCE(SUM(amount_cents),0) AS n FROM student_refunds WHERE invoice_id=? AND status IN('pending','approved','paid')",line.invoice_id)?.n||0);
+        const adjustedCharge=Math.max(0,Number(invoice?.amount_cents||0)-assistance-credits);
+        const refundable=Math.max(0,paid-adjustedCharge-reserved);
+        const amount=Math.min(credit,refundable);
+        if(amount>0){
+         store.run(`INSERT INTO student_refunds(id,student_id,invoice_id,registration_id,add_drop_request_id,amount_cents,status,reason,created_at)
+          VALUES(?,?,?,?,?,?,'pending',?,?)`,
+          crypto.randomUUID(),student.id,line.invoice_id,registrationId,request.id,amount,
+          `Paid tuition overpayment created by Add/Drop: ${request.reason}`,now());
+         refundDue+=amount;
+        }
+       }
       }
      }
     }
@@ -320,12 +343,12 @@ export function installStudentAddDrop(app:Express,store:Operations){
       actorOf(res)!.id,now(),droppedCredit,check.addedUnbilled,now(),request.id);
     store.audit(actorOf(res)!,'ADD_DROP_COMMITTED',request.id,{status:'approved'},
      {status:'committed',studentId:student.id,termId:request.term_id,addSectionIds:addIds,dropRegistrationIds:dropIds,
-      addedRegistrationIds,droppedCreditCents:droppedCredit,addedUnbilledCents:check.addedUnbilled,refundPercent:check.refundPercent});
+      addedRegistrationIds,droppedCreditCents:droppedCredit,addedUnbilledCents:check.addedUnbilled,refundDueCents:refundDue,refundPercent:check.refundPercent});
     if(student.user_id)store.notify(student.user_id,'academic','Add/Drop completed',
      'Your approved Add/Drop request has been committed. Review your enrollments and financial statement for any posted adjustments.');
     return {id:request.id,status:'committed',studentId:student.id,termId:request.term_id,
      addedRegistrations:addedRegistrationIds.length,droppedRegistrations:dropIds.length,
-     droppedCreditCents:droppedCredit,addedUnbilledCents:check.addedUnbilled,refundPercent:check.refundPercent};
+     droppedCreditCents:droppedCredit,addedUnbilledCents:check.addedUnbilled,refundDueCents:refundDue,refundPercent:check.refundPercent};
    });
    if('error'in result)return res.status(typeof result.status==='number'?result.status:409).json({error:result.error});
    return res.json(result);
@@ -344,6 +367,59 @@ export function installStudentAddDrop(app:Express,store:Operations){
       LEFT JOIN invoice_lines l ON l.registration_id=r.id
       WHERE r.student_id=? AND s.term_id=? AND r.status='enrolled' AND l.id IS NULL`,row.student_id,row.term_id),
     }));
-  return res.json({items:rows});
+  const refunds=store.all(`SELECT r.*,s.student_number,s.full_name,i.number AS invoice_number,
+    c.code AS course_code,c.title AS course_title
+    FROM student_refunds r JOIN students s ON s.id=r.student_id
+    JOIN invoices i ON i.id=r.invoice_id
+    JOIN registrations g ON g.id=r.registration_id
+    JOIN sections z ON z.id=g.section_id JOIN courses c ON c.id=z.course_id
+    WHERE r.status IN('pending','approved') ORDER BY r.created_at`);
+  return res.json({items:rows,refunds});
+ });
+
+ app.post('/api/student/add-drop/refunds/:id/review',express.json({limit:'8kb'}),(req,res)=>{
+  const actor=actorOf(res);
+  if(!actor||!['super_admin','bursar'].includes(actor.role)||!uuid.test(req.params.id))return res.sendStatus(403);
+  const decision=req.body?.decision,note=typeof req.body?.note==='string'?req.body.note.trim():'';
+  if(!['approved','cancelled'].includes(decision)||note.length<10||note.length>1200)
+   return res.status(400).json({error:'Choose approve/cancel and provide a Finance note of at least 10 characters.'});
+  const refund=store.one('SELECT * FROM student_refunds WHERE id=?',req.params.id);
+  if(!refund)return res.sendStatus(404);
+  if(refund.status!=='pending')return res.status(409).json({error:'Only a pending refund can be reviewed.'});
+  store.run('UPDATE student_refunds SET status=?,reason=reason||? ,approved_by=?,approved_at=? WHERE id=?',
+   decision,' | Finance review: '+note,actor.id,now(),refund.id);
+  store.audit(actor,'STUDENT_REFUND_REVIEWED',refund.id,{status:'pending'},{status:decision,note});
+  return res.json({id:refund.id,status:decision});
+ });
+
+ app.post('/api/student/add-drop/refunds/:id/pay',express.json({limit:'8kb'}),(req,res)=>{
+  const actor=actorOf(res);
+  if(!actor||!['super_admin','bursar'].includes(actor.role)||!uuid.test(req.params.id))return res.sendStatus(403);
+  try{
+   const result=store.transaction(()=>{
+    const refund=store.one('SELECT * FROM student_refunds WHERE id=?',req.params.id);
+    if(!refund)return {error:'Refund not found.',status:404};
+    if(refund.status!=='approved')return {error:'Finance approval is required before refund payment.',status:409};
+    if(refund.approved_by===actor.id)return {error:'Independent payout required: the account that approved the refund cannot mark it paid.',status:409};
+    const method=req.body?.method;
+    if(!['bank','mobile_money','cash'].includes(method))return {error:'Choose Cash, Bank, or Mobile Money for the refund.',status:400};
+    const externalReference=typeof req.body?.externalReference==='string'?req.body.externalReference.trim():'';
+    if(method!=='cash'&&!externalReference)return {error:'Bank and Mobile Money refunds require an external transaction reference.',status:400};
+    if(externalReference.length>120)return {error:'External transaction reference must be 120 characters or fewer.',status:400};
+    const year=today().slice(0,4),key='refund_sequence_'+year;
+    const sequence=Math.max(0,Number(store.one('SELECT value FROM settings WHERE key=?',key)?.value||0))+1;
+    store.run("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",key,String(sequence));
+    const reference='HIAU-REF-'+year+'-'+String(sequence).padStart(6,'0');
+    store.run(`UPDATE student_refunds SET status='paid',paid_by=?,paid_at=?,method=?,reference=?,external_reference=? WHERE id=?`,
+     actor.id,now(),method,reference,externalReference,refund.id);
+    store.audit(actor,'STUDENT_REFUND_PAID',refund.id,{status:'approved'},{status:'paid',reference,method,externalReference,amountCents:refund.amount_cents});
+    const student=store.one('SELECT user_id FROM students WHERE id=?',refund.student_id);
+    if(student?.user_id)store.notify(student.user_id,'finance','Student refund paid',
+     `Your approved tuition refund of ${(refund.amount_cents/100).toFixed(2)} has been recorded as ${reference}.`);
+    return {id:refund.id,status:'paid',reference,amountCents:refund.amount_cents};
+   });
+   if('error'in result)return res.status(typeof result.status==='number'?result.status:409).json({error:result.error});
+   return res.json(result);
+  }catch(error){console.error('Refund payment failed',error);return res.status(500).json({error:'Refund could not be recorded; no partial payout was saved.'});}
  });
 }
