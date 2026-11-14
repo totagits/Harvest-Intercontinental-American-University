@@ -6,8 +6,15 @@ type Section={id:string;term_id:string;code:string;course_code:string;course_tit
 type Plan={id:string;student_id:string;term_id:string;sectionIds:string[];student_note:string;reviewer_note:string;
  status:'draft'|'submitted'|'returned'|'approved'|'rejected';full_name?:string;student_number?:string;term_title?:string;committed_at?:string|null};
 const parse=async(r:Response)=>{const data=await r.json();if(!r.ok)throw Error(data.error||'Request failed');return data;};
-const send=async(url:string,body:object)=>parse(await fetch(url,{method:'POST',credentials:'same-origin',
- headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}));
+const send=async(url:string,body:object)=>{
+ const auth=await fetch('/api/auth/me',{credentials:'same-origin',cache:'no-store'});
+ const session=await auth.json().catch(()=>({}));
+ if(!auth.ok||typeof session.csrf!=='string'||!session.csrf)
+  throw Error('Session verification unavailable. Refresh and sign in again.');
+ return parse(await fetch(url,{method:'POST',credentials:'same-origin',
+  headers:{'Content-Type':'application/json','x-csrf-token':session.csrf},
+  body:JSON.stringify(body)}));
+};
 export const StudentCoursePlanning:React.FC<{currentUser:UserProfile}>=({currentUser})=>{
  const [terms,setTerms]=useState<Term[]>([]),[sections,setSections]=useState<Section[]>([]);
  const [plans,setPlans]=useState<Plan[]>([]),[linked,setLinked]=useState(true);
