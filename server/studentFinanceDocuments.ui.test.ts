@@ -15,11 +15,17 @@ test('student finance PDFs use HIAU branding and only reconciled payments receiv
  assert.match(docs,/OFFICIAL PAYMENT RECEIPT/);
  assert.match(docs,/HIAU payment reference/);
  assert.match(docs,/External transaction reference/);
+ assert.match(docs,/Outstanding invoice balance/);
+ assert.match(docs,/Refunds paid/);
+ assert.match(docs,/REFUNDS/);
  assert.match(docs,/payment\.status!=='reconciled'/);
  assert.match(statement,/Download invoice PDF/);
  assert.match(statement,/Download official receipt/);
  assert.match(statement,/payment\.status==='reconciled'/);
+ assert.match(statement,/Student credit \/ refund balance/);
+ assert.match(statement,/invoice\.refunds/);
  assert.match(api,/p\.id,p\.reference,p\.external_reference,p\.amount_cents/);
+ assert.match(api,/FROM student_refunds WHERE invoice_id=/);
  assert.match(api,/studentName:student\.full_name/);
  assert.match(workspace,/timeZone:'UTC'/);
  assert.match(workspace,/reconciled-payment receipts/);
