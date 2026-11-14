@@ -42,6 +42,7 @@ import {WebsiteVideoLibrary} from './components/portal/WebsiteVideoLibrary';
 import { SecureStudentWorkspace } from './components/portal/SecureStudentWorkspace';
 import {StudentCoursePlanning} from './components/portal/StudentCoursePlanning';
 import {StudentAddDropWorkflow} from './components/portal/StudentAddDropWorkflow';
+import {StudentCourseBoard} from './components/portal/StudentCourseBoard';
 import {StudentFinancialStatement} from './components/portal/StudentFinancialStatement';
 import {StudentAssistanceRequests} from './components/portal/StudentAssistanceRequests';
 import { AdmissionsReviewModule } from './components/portal/AdmissionsReviewModule';
@@ -520,10 +521,9 @@ export default function App() {
             )}
 
             {activePortalTab === 'academics' && (
-              <AcademicPlanningRegistration
-                currentUser={currentUser}
-                onOpenPrintModal={handleOpenPrintModal}
-              />
+              currentUser.role === 'student'
+                ? <StudentCourseBoard currentUser={currentUser} onOpenStudentWorkspace={() => setActivePortalTab('student_portal')} />
+                : <AcademicPlanningRegistration currentUser={currentUser} onOpenPrintModal={handleOpenPrintModal} />
             )}
 
             {activePortalTab === 'curriculum' && (
@@ -572,7 +572,7 @@ export default function App() {
                 <StudentCoursePlanning currentUser={currentUser} />
                 <StudentFinancialStatement currentUser={currentUser} />
                 <StudentAssistanceRequests currentUser={currentUser} />
-                <StudentAddDropWorkflow currentUser={currentUser} mode="student" />
+                <StudentAddDropWorkflow currentUser={currentUser} mode="student" onOpenCourseBoard={() => setActivePortalTab('academics')} />
               </>
             )}
 
