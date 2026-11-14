@@ -3,6 +3,7 @@ import express from 'express';
 import crypto from 'node:crypto';
 import {Operations} from './operations';
 import {actorOf} from './identity';
+import {sectionSetupComplete,sectionSetupIssue} from './sectionDelivery';
 
 const now=()=>new Date().toISOString();
 type PlanStatus='draft'|'submitted'|'returned'|'approved'|'rejected';
@@ -49,6 +50,8 @@ export function installStudentPlanning(app:Express,store:Operations){
     const credits=sections.reduce((n,s)=>n+s.credits,0);
     if(credits>term.max_credits)return 'The plan exceeds the term credit maximum.';
     for(const section of sections){
+      const setupIssue=sectionSetupIssue(section);
+      if(setupIssue)return 'A selected section is not yet available because its delivery setup is incomplete.';
       const registered=store.one(`SELECT r.id FROM registrations r JOIN sections s ON s.id=r.section_id
         WHERE r.student_id=? AND s.term_id=? AND s.course_id=? AND r.status='enrolled'`,
         student.id,termId,section.course_id);
@@ -76,8 +79,9 @@ export function installStudentPlanning(app:Express,store:Operations){
         FROM student_course_plans p LEFT JOIN student_course_plan_commits x ON x.plan_id=p.id
         WHERE p.student_id=? ORDER BY p.updated_at DESC`,record.id).map(inspect);
       const terms=store.all("SELECT id,title,status,max_credits FROM terms WHERE status='open' ORDER BY start_date");
-      const sections=store.all(`SELECT s.id,s.term_id,s.code,s.capacity,c.code AS course_code,c.title AS course_title,c.credits
-        FROM sections s JOIN terms t ON t.id=s.term_id JOIN courses c ON c.id=s.course_id WHERE t.status='open'`);
+      const sections=store.all(`SELECT s.*,c.code AS course_code,c.title AS course_title,c.credits
+        FROM sections s JOIN terms t ON t.id=s.term_id JOIN courses c ON c.id=s.course_id WHERE t.status='open'`)
+        .filter((section:any)=>sectionSetupComplete(section));
       return res.json({plans,linked:true,terms,sections});
     }
     if(!registrar(res))return res.sendStatus(403);

@@ -5,7 +5,7 @@ import type {UserProfile} from '../../types';
 type Term={id:string;title:string;max_credits:number;start_date:string;end_date:string};
 type Section={
  id:string;term_id:string;code:string;capacity:number;delivery_mode:'classroom'|'online'|'hybrid';location:string;classroom:string;online_classroom:string;schedule:string;
- course_id:string;course_code:string;course_title:string;credits:number;lecturer_name?:string|null;enrolled_count:number;program_eligible:number;has_online_classroom:number;
+ course_id:string;course_code:string;course_title:string;credits:number;lecturer_name?:string|null;enrolled_count:number;program_eligible:number;has_online_classroom:number;setup_complete:number;setup_issue:string;
 };
 type Registration={registration_id:string;section_id:string;term_id:string;course_id:string;course_code:string;course_title:string;credits:number};
 type Cart={term_id:string;addSectionIds:string[];dropRegistrationIds:string[];reason:string;updated_at:string};
@@ -110,6 +110,7 @@ export const StudentCourseBoard:React.FC<{currentUser:UserProfile;onOpenStudentW
     const seats=Math.max(0,Number(section.capacity)-Number(section.enrolled_count||0));
     const full=seats<=0;
     const programEligible=Number(section.program_eligible)===1;
+    const setupComplete=Number(section.setup_complete)===1;
     const mode=section.delivery_mode||'classroom';
     const modeLabel=mode==='classroom'?'Classroom':mode==='online'?'Online':'Hybrid';
     return <article key={section.id} className="rounded-xl border border-[#E6DCE7] p-4">
@@ -120,21 +121,22 @@ export const StudentCourseBoard:React.FC<{currentUser:UserProfile;onOpenStudentW
        <span className="rounded-full bg-[#F4EDF4] px-3 py-1 text-xs font-bold text-[#4A1249]">{section.credits} credits</span></div></div>
      <div className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
       <p className="flex items-center gap-2"><Clock className="h-4 w-4 text-[#8B5C1C]"/>{section.schedule||'Schedule to be announced'}</p>
-      {mode!=='online'&&<p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-[#8B5C1C]"/>{section.location||'Campus / location TBA'}</p>}
-      {mode!=='online'&&<p className="flex items-center gap-2"><Building2 className="h-4 w-4 text-[#8B5C1C]"/>{section.classroom?('Classroom '+section.classroom):'Classroom TBA'}</p>}
+      {mode!=='online'&&<p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-[#8B5C1C]"/>{section.location||'Campus / location not configured'}</p>}
+      {mode!=='online'&&<p className="flex items-center gap-2"><Building2 className="h-4 w-4 text-[#8B5C1C]"/>{section.classroom?('Classroom '+section.classroom):'Classroom not assigned'}</p>}
       {mode!=='classroom'&&<p className="flex items-center gap-2"><Monitor className="h-4 w-4 text-[#8B5C1C]"/>
-       {already?(section.online_classroom||'Online classroom TBA'):(Number(section.has_online_classroom)===1?'Online access available after enrollment':'Online classroom TBA')}
+       {already?(section.online_classroom||'Online classroom not configured'):(Number(section.has_online_classroom)===1?'Online access available after enrollment':'Online classroom not configured')}
       </p>}
       <p className="flex items-center gap-2"><User className="h-4 w-4 text-[#8B5C1C]"/>{section.lecturer_name||'Faculty assignment pending'}</p>
       <p className="flex items-center gap-2"><Users className="h-4 w-4 text-[#8B5C1C]"/>{seats} of {section.capacity} seats available</p>
      </div>
      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#EEE5F0] pt-3">
       <div className="text-xs">{already?<span className="inline-flex items-center gap-1 font-semibold text-[#4A1249]"><CheckCircle2 className="h-4 w-4"/>In My Courses</span>:
+       !setupComplete?<span className="font-semibold text-[#8B5C1C]">Section setup incomplete — not available for registration</span>:
        !programEligible?<span className="font-semibold text-slate-500">Not currently approved for your program</span>:
        full?<span className="font-semibold text-rose-700">Section full</span>:
        inCart?<span className="font-semibold text-[#4A1249]">In Add/Drop Cart</span>:
        <span className="text-slate-600">Available to request</span>}</div>
-      {!already&&programEligible&&!full&&(inCart?
+      {!already&&setupComplete&&programEligible&&!full&&(inCart?
        <button type="button" disabled={busy===section.id} onClick={()=>void updateAddition(section.id,true)}
         className="rounded-lg border border-[#4A1249] px-3 py-2 text-xs font-semibold text-[#4A1249] disabled:opacity-50">Remove from cart</button>:
        <button type="button" disabled={busy===section.id} onClick={()=>void updateAddition(section.id)}

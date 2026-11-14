@@ -388,6 +388,43 @@ export class Operations {
       SET location=''
       WHERE delivery_mode='online' AND (location LIKE '% / Online' OR location LIKE '% / Virtual');
     `);
+
+    const stagingFixtureKey='staging_section_delivery_fixtures_v1';
+    const stagingProgram=this.one("SELECT id FROM programs WHERE code='STG-ACCEPT'");
+    const stagingTerm=this.one("SELECT id FROM terms WHERE code='STG-2026-A'");
+    const stagingFixtureDone=this.one('SELECT value FROM settings WHERE key=?',stagingFixtureKey);
+    if(stagingProgram&&stagingTerm&&!stagingFixtureDone){
+      const before=this.all(`SELECT s.id,c.code,s.delivery_mode,s.location,s.classroom,s.online_classroom
+        FROM sections s JOIN courses c ON c.id=s.course_id
+        WHERE s.term_id=? AND c.code IN('STG-101','STG-102','STG-103','STG-104')`,stagingTerm.id);
+      this.transaction(()=>{
+        this.run(`UPDATE sections
+          SET delivery_mode='hybrid',
+              location=CASE WHEN trim(location)='' THEN 'HIAU Staging' ELSE location END,
+              classroom=CASE
+                WHEN trim(classroom)<>'' THEN classroom
+                WHEN course_id=(SELECT id FROM courses WHERE code='STG-101') THEN 'Room 101'
+                WHEN course_id=(SELECT id FROM courses WHERE code='STG-102') THEN 'Room 102'
+                WHEN course_id=(SELECT id FROM courses WHERE code='STG-103') THEN 'Room 103'
+                WHEN course_id=(SELECT id FROM courses WHERE code='STG-104') THEN 'Room 104'
+                ELSE classroom END,
+              online_classroom=CASE
+                WHEN trim(online_classroom)<>'' THEN online_classroom
+                WHEN course_id=(SELECT id FROM courses WHERE code='STG-101') THEN 'HIAU Online Classroom — STG-101'
+                WHEN course_id=(SELECT id FROM courses WHERE code='STG-102') THEN 'HIAU Online Classroom — STG-102'
+                WHEN course_id=(SELECT id FROM courses WHERE code='STG-103') THEN 'HIAU Online Classroom — STG-103'
+                WHEN course_id=(SELECT id FROM courses WHERE code='STG-104') THEN 'HIAU Online Classroom — STG-104'
+                ELSE online_classroom END
+          WHERE term_id=? AND course_id IN(
+            SELECT id FROM courses WHERE code IN('STG-101','STG-102','STG-103','STG-104')
+          )`,stagingTerm.id);
+        this.run('INSERT INTO settings(key,value) VALUES(?,?)',stagingFixtureKey,JSON.stringify({at:now(),termId:stagingTerm.id}));
+        const after=this.all(`SELECT s.id,c.code,s.delivery_mode,s.location,s.classroom,s.online_classroom
+          FROM sections s JOIN courses c ON c.id=s.course_id
+          WHERE s.term_id=? AND c.code IN('STG-101','STG-102','STG-103','STG-104')`,stagingTerm.id);
+        this.audit('system','STAGING_SECTION_DELIVERY_FIXTURES','sections',before,{testData:true,sections:after});
+      });
+    }
   }
   all(query: string, ...parameters: any[]): any[] {
     return this.sql.prepare(query).all(...parameters) as any[];
