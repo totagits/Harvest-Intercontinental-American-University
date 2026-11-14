@@ -146,7 +146,7 @@ export const FinancePaymentWorkflow:React.FC<{currentUser:UserProfile}>=({curren
     </label>
     <div className="flex items-end">
      <button type="button" disabled={busy||!amount.trim()||!reference.trim()||!receivedDate} onClick={()=>void record()}
-      className="rounded-lg bg-[#4A1249] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#35103B] disabled:opacity-50">
+      className="hiau-finance-primary rounded-lg px-4 py-2.5 text-sm font-bold">
       {busy?'Recording…':'Record payment'}
      </button>
     </div>
@@ -174,7 +174,7 @@ export const FinancePaymentWorkflow:React.FC<{currentUser:UserProfile}>=({curren
       </label>
       <div className="flex flex-wrap gap-2">
        <button type="button" disabled={busy} onClick={()=>void review(payment,'reconciled')}
-        className="rounded-lg bg-[#4A1249] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Reconcile payment</button>
+        className="hiau-finance-primary rounded-lg px-4 py-2 text-sm font-semibold">Reconcile payment</button>
        <button type="button" disabled={busy} onClick={()=>void review(payment,'cancelled')}
         className="rounded-lg border border-[#4A1249] px-4 py-2 text-sm font-semibold text-[#4A1249] disabled:opacity-50">Cancel payment</button>
       </div>
