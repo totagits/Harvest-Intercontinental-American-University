@@ -2,7 +2,7 @@ import React,{useCallback,useEffect,useMemo,useState} from 'react';
 import {BookOpen,Plus,RefreshCcw,Save,Users} from 'lucide-react';
 import type {UserProfile} from '../../types';
 
-type Term={id:string;code:string;title:string;status:'draft'|'open'|'closed'};
+type Term={id:string;code:string;title:string;status:'draft'|'open'|'closed';start_date:string;end_date:string;registration_close_date:string};
 type Course={id:string;code:string;title:string;credits:number};
 type Staff={id:string;name:string;role:string};
 type Section={
@@ -57,6 +57,7 @@ export const CourseSectionManagement:React.FC<{currentUser:UserProfile}>=({curre
  const [locationDrafts,setLocationDrafts]=useState<Record<string,string>>({});
  const [classroomDrafts,setClassroomDrafts]=useState<Record<string,string>>({});
  const [onlineClassroomDrafts,setOnlineClassroomDrafts]=useState<Record<string,string>>({});
+ const [deadlineDrafts,setDeadlineDrafts]=useState<Record<string,string>>({});
 
  const load=useCallback(async()=>{
   setError('');
@@ -71,6 +72,8 @@ export const CourseSectionManagement:React.FC<{currentUser:UserProfile}>=({curre
   if(!lecturerId&&faculty[0]?.id)setLecturerId(faculty[0].id);
   const drafts:Record<string,string>={},modeDrafts:Record<string,'classroom'|'online'|'hybrid'>={};
   const locDrafts:Record<string,string>={},roomDrafts:Record<string,string>={},onlineDrafts:Record<string,string>={};
+  const deadlineNext:Record<string,string>={};
+  for(const term of d.terms||[])deadlineNext[term.id]=String(term.registration_close_date||term.end_date||'');
   for(const s of d.sections||[]){
    drafts[s.id]=String(s.capacity);
    modeDrafts[s.id]=(s.delivery_mode||'classroom') as 'classroom'|'online'|'hybrid';
@@ -79,7 +82,7 @@ export const CourseSectionManagement:React.FC<{currentUser:UserProfile}>=({curre
    onlineDrafts[s.id]=String(s.online_classroom||'');
   }
   setCapacityDrafts(drafts);setDeliveryModeDrafts(modeDrafts);setLocationDrafts(locDrafts);
-  setClassroomDrafts(roomDrafts);setOnlineClassroomDrafts(onlineDrafts);
+  setClassroomDrafts(roomDrafts);setOnlineClassroomDrafts(onlineDrafts);setDeadlineDrafts(deadlineNext);
  },[courseId,termId,lecturerId]);
 
  React.useEffect(()=>{if(canManage)void load().catch(e=>setError(e instanceof Error?e.message:'Could not load course sections.'));},[canManage,load]);
@@ -100,6 +103,18 @@ export const CourseSectionManagement:React.FC<{currentUser:UserProfile}>=({curre
    setCode('A');setCapacity('20');setDeliveryMode('classroom');setLocation('');setClassroom('');setOnlineClassroom('');setSchedule('');
    await load();
   }catch(e){setError(e instanceof Error?e.message:'Course section could not be created.');}
+  finally{setBusy(false);}
+ };
+
+ const updateDeadline=async(term:Term)=>{
+  if(busy)return;
+  setBusy(true);setError('');setMessage('');
+  try{
+   const registrationCloseDate=deadlineDrafts[term.id]||'';
+   await action('termRegistrationDeadline',{id:term.id,registrationCloseDate});
+   setMessage(`${term.title} registration/Add-Drop closing date updated to ${registrationCloseDate} and audited.`);
+   await load();
+  }catch(e){setError(e instanceof Error?e.message:'Registration/Add-Drop deadline could not be updated.');}
   finally{setBusy(false);}
  };
 
@@ -133,6 +148,29 @@ export const CourseSectionManagement:React.FC<{currentUser:UserProfile}>=({curre
 
   {error&&<p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">{error}</p>}
   {message&&<p role="status" className="rounded-lg border border-[#D8C8DC] bg-[#FAF7FB] p-3 text-sm font-medium text-[#4A1249]">{message}</p>}
+
+  <div className="rounded-xl border border-[#E6DCE7] bg-white p-4">
+   <h3 className="font-bold text-[#4A1249]">Registration & Add/Drop deadlines</h3>
+   <p className="mt-1 text-xs text-slate-600">Students may register, add, or drop only through the closing date. The server rechecks this date at cart save, submission, Registrar review and final commitment.</p>
+   <div className="mt-3 grid gap-3 lg:grid-cols-2">{(state?.terms||[]).map(term=>{
+    const draft=deadlineDrafts[term.id]||term.registration_close_date||term.end_date;
+    const invalid=!draft||draft<term.start_date||draft>term.end_date;
+    const unchanged=draft===(term.registration_close_date||term.end_date);
+    return <div key={term.id} className="rounded-lg border border-[#EEE5F0] p-3">
+     <p className="text-sm font-semibold">{term.title} <span className="text-xs font-normal text-slate-500">({term.status})</span></p>
+     <div className="mt-2 flex flex-wrap items-end gap-2">
+      <label className="text-xs font-semibold">Registration / Add-Drop closes
+       <input type="date" min={term.start_date} max={term.end_date} value={draft}
+        onChange={e=>setDeadlineDrafts(v=>({...v,[term.id]:e.target.value}))}
+        className="mt-1 block rounded-lg border border-[#D8C8DC] bg-white p-2"/>
+      </label>
+      <button type="button" disabled={busy||invalid||unchanged} onClick={()=>void updateDeadline(term)}
+       className="rounded-lg border border-[#4A1249] px-3 py-2 text-xs font-semibold text-[#4A1249] disabled:opacity-40">Save deadline</button>
+     </div>
+     <p className="mt-2 text-[11px] text-slate-500">Term: {term.start_date} through {term.end_date}</p>
+    </div>;
+   })}</div>
+  </div>
 
   <div className="rounded-xl border border-[#E6DCE7] bg-[#FAF8FB] p-4">
    <h3 className="flex items-center gap-2 font-bold text-[#4A1249]"><Plus className="h-5 w-5"/>Create university course section</h3>
