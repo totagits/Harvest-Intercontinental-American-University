@@ -36,10 +36,10 @@ const statusLabel=(s:string)=>s.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpper
 const sectionAccess=(section:any)=>{
  const mode=section.delivery_mode||'classroom';
  const online=section.online_classroom||
-  (Number(section.has_online_classroom)===1?'Online access after enrollment':'Online classroom TBA');
+  (Number(section.has_online_classroom)===1?'Online access after enrollment':'Online classroom not configured');
  if(mode==='online')return `Online · ${online}`;
- if(mode==='hybrid')return `Hybrid · ${section.classroom?('Classroom '+section.classroom):'Classroom TBA'} · ${online}`;
- return `Classroom · ${section.classroom?('Classroom '+section.classroom):'Classroom TBA'}`;
+ if(mode==='hybrid')return `Hybrid · ${section.classroom?('Classroom '+section.classroom):'Classroom not assigned'} · ${online}`;
+ return `Classroom · ${section.classroom?('Classroom '+section.classroom):'Classroom not assigned'}`;
 };
 
 export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'student'|'registrar'|'finance';onOpenCourseBoard?:()=>void}>=({currentUser,mode,onOpenCourseBoard})=>{
