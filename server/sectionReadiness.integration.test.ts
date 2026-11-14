@@ -22,7 +22,7 @@ test('incomplete section setup is visible but blocked until completed',async()=>
  const sectionId=crypto.randomUUID(),stamp=new Date().toISOString();
  store.run(`INSERT INTO sections(id,course_id,term_id,lecturer_id,code,capacity,delivery_mode,location,classroom,online_classroom,schedule,created_at)
   VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
-  sectionId,course.id,term.id,lecturer.id,'A',20,'hybrid','Main Campus','Room 201','','Mon/Wed 10:00–11:30',stamp);
+  sectionId,course.id,term.id,lecturer.id,'A',20,'hybrid','Main Campus','Room 201','TBA','Mon/Wed 10:00–11:30',stamp);
 
  const applicationId=crypto.randomUUID(),studentId=crypto.randomUUID();
  store.run("INSERT INTO applications(id,number,full_name,email,phone,program_id,status,decision_note,created_at,updated_at) VALUES(?,?,?,?,?,?,'admitted','test',?,?)",
