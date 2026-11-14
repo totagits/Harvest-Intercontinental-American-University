@@ -129,6 +129,34 @@ export class Operations {
       CREATE TABLE IF NOT EXISTS students(id TEXT PRIMARY KEY,user_id TEXT UNIQUE REFERENCES users(id),application_id TEXT UNIQUE NOT NULL REFERENCES applications(id),student_number TEXT UNIQUE NOT NULL,full_name TEXT NOT NULL,email TEXT UNIQUE NOT NULL COLLATE NOCASE,program_id TEXT NOT NULL REFERENCES programs(id),admitted_term_id TEXT NOT NULL REFERENCES terms(id),status TEXT NOT NULL CHECK(status IN('active','on_leave','graduated')),financial_hold INTEGER NOT NULL DEFAULT 0 CHECK(financial_hold IN(0,1)),created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS registrations(id TEXT PRIMARY KEY,student_id TEXT NOT NULL REFERENCES students(id),section_id TEXT NOT NULL REFERENCES sections(id),status TEXT NOT NULL CHECK(status IN('enrolled','dropped')),created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
       CREATE UNIQUE INDEX IF NOT EXISTS active_registration ON registrations(student_id,section_id) WHERE status='enrolled';
+      CREATE TABLE IF NOT EXISTS student_add_drop_requests(
+        id TEXT PRIMARY KEY,
+        student_id TEXT NOT NULL REFERENCES students(id),
+        term_id TEXT NOT NULL REFERENCES terms(id),
+        add_section_ids TEXT NOT NULL DEFAULT '[]',
+        drop_registration_ids TEXT NOT NULL DEFAULT '[]',
+        reason TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN('submitted','approved','returned','rejected','committed')),
+        reviewer_note TEXT NOT NULL DEFAULT '',
+        reviewed_by TEXT REFERENCES users(id),
+        reviewed_at TEXT,
+        committed_by TEXT REFERENCES users(id),
+        committed_at TEXT,
+        dropped_credit_cents INTEGER NOT NULL DEFAULT 0,
+        added_unbilled_cents INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS add_drop_review_queue ON student_add_drop_requests(status,created_at);
+      CREATE TABLE IF NOT EXISTS student_add_drop_carts(
+        student_id TEXT NOT NULL REFERENCES students(id),
+        term_id TEXT NOT NULL REFERENCES terms(id),
+        add_section_ids TEXT NOT NULL DEFAULT '[]',
+        drop_registration_ids TEXT NOT NULL DEFAULT '[]',
+        reason TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY(student_id,term_id)
+      );
       CREATE TABLE IF NOT EXISTS student_course_plans(
         id TEXT PRIMARY KEY,
         student_id TEXT NOT NULL REFERENCES students(id),
@@ -1623,7 +1651,7 @@ export class Operations {
       data?.schemaVersion !== 1 ||
       !data.tables ||
       !operationalTables.filter(name => !['curriculum_programs','curriculum_courses','curriculum_publications','student_assistance_requests','student_course_plans','student_course_plan_commits',
-        'term_registration_deadlines','student_refunds',
+        'term_registration_deadlines','student_refunds','student_add_drop_requests','student_add_drop_carts',
         'institutional_partners','institutional_partner_agreements','institutional_partner_members',
         'institutional_partner_resources','institutional_partner_distributions',
         'institutional_partner_distribution_grants','institutional_partner_events',
