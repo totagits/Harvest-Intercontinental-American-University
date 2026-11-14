@@ -35,7 +35,7 @@ test('MICHAEL self-link endpoint creates missing staging academic fixture and li
     assert.equal(store.one('SELECT COUNT(*) AS n FROM terms').n,0);
     const response=await fetch(base+'/api/workspaces/staging-student-self-link',{
       method:'POST',
-      headers:{'content-type':'application/json','host':'hiau-staging.totag.network'},
+      headers:{'content-type':'application/json','x-forwarded-host':'hiau-staging.totag.network'},
       body:JSON.stringify({acceptanceTest:true}),
     });
     const data:any=await response.json();
@@ -57,7 +57,7 @@ test('MICHAEL self-link endpoint creates missing staging academic fixture and li
 
     const repeated=await fetch(base+'/api/workspaces/staging-student-self-link',{
       method:'POST',
-      headers:{'content-type':'application/json','host':'hiau-staging.totag.network'},
+      headers:{'content-type':'application/json','x-forwarded-host':'hiau-staging.totag.network'},
       body:JSON.stringify({acceptanceTest:true}),
     });
     const repeatedData:any=await repeated.json();
