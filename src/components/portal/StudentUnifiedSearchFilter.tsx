@@ -47,7 +47,7 @@ export function verifiedStudentItems(source:VerifiedSearchSource):Item[]{
     items.push({
       id:'invoice:'+str(invoice.id),kind:'invoice',
       title:number?'Invoice '+number:'Student invoice',
-      detail:'Billed '+fmtMoney(invoice.amount_cents)+' · Outstanding '+fmtMoney(invoice.balance_cents),
+      detail:'Billed '+fmtMoney(invoice.amount_cents)+' · '+(Number(invoice.balance_cents)===0?'Paid in full':Number(invoice.balance_cents)<0?'Credit / refund due '+fmtMoney(Math.abs(Number(invoice.balance_cents))):'Outstanding '+fmtMoney(invoice.balance_cents)),
       subtext:[str(invoice.term_title),str(invoice.due_date)].filter(Boolean).join(' · '),
     });
   }
