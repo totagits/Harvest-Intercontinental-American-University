@@ -373,6 +373,9 @@ export class Operations {
       this.sql.exec("ALTER TABLE sections ADD COLUMN delivery_mode TEXT NOT NULL DEFAULT 'classroom'");
     if (!sectionColumns.some((column: any) => column.name === 'online_classroom'))
       this.sql.exec("ALTER TABLE sections ADD COLUMN online_classroom TEXT NOT NULL DEFAULT ''");
+    const paymentColumns = this.sql.prepare('PRAGMA table_info(payments)').all() as any[];
+    if (!paymentColumns.some((column: any) => column.name === 'external_reference'))
+      this.sql.exec("ALTER TABLE payments ADD COLUMN external_reference TEXT NOT NULL DEFAULT ''");
     this.sql.exec(`
       UPDATE sections
       SET delivery_mode=
