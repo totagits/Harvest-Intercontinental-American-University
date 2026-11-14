@@ -260,6 +260,24 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
       <button disabled={busy||(notes[r.id]||'').trim().length<10} onClick={()=>void review(r.id,'rejected')} className="rounded border border-[#4A1249] px-3 py-2 text-sm">Reject</button></div></>}
     {r.status==='approved'&&<button disabled={busy} onClick={()=>void commit(r.id)} className="hiau-finance-primary mt-3 rounded px-4 py-2 text-sm font-semibold">Commit approved Add/Drop</button>}
    </article>)}</div>}
+  </section>;
+ }
+
+ if(isFinance){
+  const items=data?.items||[];
+  const refunds=data?.refunds||[];
+  const canRefund=['super_admin','bursar'].includes(currentUser.role);
+  return <section className="rounded-2xl border border-[#DED1E3] bg-white p-5 text-[#35103B] shadow-sm">
+   <h2 className="text-xl font-bold">Add / Drop — Finance Adjustment</h2><p className="mt-1 text-sm text-slate-700">Review committed registration changes. Drop credits are already posted according to the term refund window; added registrations remain unbilled until Finance posts them.</p>
+   {error&&<p className="mt-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm">{error}</p>}{message&&<p className="mt-3 rounded border border-[#D8C8DC] bg-[#FAF7FB] p-3 text-sm">{message}</p>}
+   {!items.length?<p className="mt-4 text-sm text-slate-600">No committed Add/Drop adjustments are available.</p>:<div className="mt-4 space-y-4">{items.map((item:any)=><article key={item.id} className="rounded-xl border border-[#E6DCE7] p-4">
+    <h3 className="font-bold">{item.student_number} — {item.full_name}</h3><p className="text-sm text-slate-600">{item.term_title}</p>
+    <div className="mt-3 grid gap-2 sm:grid-cols-3 text-sm"><p>Drop credit posted: <strong>{money(item.dropped_credit_cents)}</strong></p><p>{item.unbilledRegistrations?.length?'Added unbilled estimate':'Added tuition posted'}: <strong>{money(item.added_unbilled_cents)}</strong></p><p>Current account balance: <strong>{money(item.currentBalanceCents)}</strong></p></div>
+    {item.unbilledRegistrations?.length?<div className="mt-3 rounded-lg bg-[#FAF7FB] p-3"><p className="font-semibold">Unbilled added registrations</p>{item.unbilledRegistrations.map((x:any)=><p key={x.id} className="text-sm">{x.code} — {x.title}: {money(x.amount_cents)}</p>)}
+     <label className="mt-3 block text-sm font-semibold">Invoice due date<input type="date" value={dueDates[item.id]||''} onChange={e=>setDueDates(v=>({...v,[item.id]:e.target.value}))} className="mt-1 block rounded border border-[#D8C8DC] p-2"/></label>
+     <button disabled={busy||!dueDates[item.id]} onClick={()=>void postInvoice(item)} className="hiau-finance-primary mt-3 rounded px-4 py-2 text-sm font-semibold">Post Add/Drop tuition invoice</button>
+    </div>:<p className="mt-3 text-sm font-medium text-[#4A1249]">No unbilled added registrations remain.</p>}
+   </article>)}</div>}
    <div className="mt-6 border-t border-[#E6DCE7] pt-5">
     <h3 className="text-lg font-bold">Student Refund Queue</h3>
     <p className="mt-1 text-sm text-slate-700">Refunds are created only when a committed drop produces a refundable overpayment from actual reconciled student funds. Credits without an overpayment do not create cash refunds.</p>
@@ -288,30 +306,12 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
           placeholder={(refundMethods[refund.id]||'cash')==='cash'?'Optional for cash':'Required bank / Mobile Money reference'} className="mt-1 w-full rounded border border-[#D8C8DC] bg-white p-2"/>
         </label>
        </div>
-       <button disabled={busy||((refundMethods[refund.id]||'cash')!=='cash'&&!(refundExternalRefs[refund.id]||'').trim())} onClick={()=>void payRefund(refund.id)}
-        className="hiau-finance-primary mt-3 rounded px-4 py-2 text-sm font-semibold">Record refund paid</button>
+       <button disabled={busy||refund.approved_by===currentUser.id||((refundMethods[refund.id]||'cash')!=='cash'&&!(refundExternalRefs[refund.id]||'').trim())} onClick={()=>void payRefund(refund.id)}
+        className="hiau-finance-primary mt-3 rounded px-4 py-2 text-sm font-semibold disabled:opacity-50">Record refund paid</button>
        {refund.approved_by===currentUser.id&&<p className="mt-2 text-xs text-[#6F4F16]">Independent payout required: the account that approved this refund cannot mark it paid.</p>}
       </div>}
      </article>)}</div>}
    </div>
-  </section>;
- }
-
- if(isFinance){
-  const items=data?.items||[];
-  const refunds=data?.refunds||[];
-  const canRefund=['super_admin','bursar'].includes(currentUser.role);
-  return <section className="rounded-2xl border border-[#DED1E3] bg-white p-5 text-[#35103B] shadow-sm">
-   <h2 className="text-xl font-bold">Add / Drop — Finance Adjustment</h2><p className="mt-1 text-sm text-slate-700">Review committed registration changes. Drop credits are already posted according to the term refund window; added registrations remain unbilled until Finance posts them.</p>
-   {error&&<p className="mt-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm">{error}</p>}{message&&<p className="mt-3 rounded border border-[#D8C8DC] bg-[#FAF7FB] p-3 text-sm">{message}</p>}
-   {!items.length?<p className="mt-4 text-sm text-slate-600">No committed Add/Drop adjustments are available.</p>:<div className="mt-4 space-y-4">{items.map((item:any)=><article key={item.id} className="rounded-xl border border-[#E6DCE7] p-4">
-    <h3 className="font-bold">{item.student_number} — {item.full_name}</h3><p className="text-sm text-slate-600">{item.term_title}</p>
-    <div className="mt-3 grid gap-2 sm:grid-cols-3 text-sm"><p>Drop credit posted: <strong>{money(item.dropped_credit_cents)}</strong></p><p>{item.unbilledRegistrations?.length?'Added unbilled estimate':'Added tuition posted'}: <strong>{money(item.added_unbilled_cents)}</strong></p><p>Current account balance: <strong>{money(item.currentBalanceCents)}</strong></p></div>
-    {item.unbilledRegistrations?.length?<div className="mt-3 rounded-lg bg-[#FAF7FB] p-3"><p className="font-semibold">Unbilled added registrations</p>{item.unbilledRegistrations.map((x:any)=><p key={x.id} className="text-sm">{x.code} — {x.title}: {money(x.amount_cents)}</p>)}
-     <label className="mt-3 block text-sm font-semibold">Invoice due date<input type="date" value={dueDates[item.id]||''} onChange={e=>setDueDates(v=>({...v,[item.id]:e.target.value}))} className="mt-1 block rounded border border-[#D8C8DC] p-2"/></label>
-     <button disabled={busy||!dueDates[item.id]} onClick={()=>void postInvoice(item)} className="hiau-finance-primary mt-3 rounded px-4 py-2 text-sm font-semibold">Post Add/Drop tuition invoice</button>
-    </div>:<p className="mt-3 text-sm font-medium text-[#4A1249]">No unbilled added registrations remain.</p>}
-   </article>)}</div>}
   </section>;
  }
  return null;
