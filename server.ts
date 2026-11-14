@@ -20,12 +20,21 @@ import { installInstitutionalPartners } from './server/institutionalPartners';
 import {installPartnerCollaboration,partnerInviteAllowed} from './server/partnerCollaboration';
 import {installPartnerDistribution} from './server/partnerDistribution';
 import {installPartnerEvents} from './server/partnerEvents';
+import {ensureStagingAcceptanceStudent} from './server/stagingAcceptanceStudent';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const directory = process.env.DATA_DIR || path.join(root, 'data');
 const operations = new Operations(directory);
 operations.migrateLegacy();
 let users = operations.users();
+const stagingAcceptanceStudent=ensureStagingAcceptanceStudent(operations,users);
+if(stagingAcceptanceStudent.created)
+  console.log(
+    'Staging acceptance student linked: '+
+    stagingAcceptanceStudent.studentNumber+' · '+
+    stagingAcceptanceStudent.programTitle+' · '+
+    stagingAcceptanceStudent.termTitle,
+  );
 const app = express();
 app.use((req, res, next) => {
   if (/^\/api\/auth\//.test(req.path) || (req.path === '/api/applications' && req.method === 'POST'))
