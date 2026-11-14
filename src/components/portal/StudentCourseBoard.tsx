@@ -1,10 +1,10 @@
 import React,{useCallback,useEffect,useMemo,useState} from 'react';
-import {BookOpen,CheckCircle2,Clock,MapPin,RefreshCcw,Search,ShoppingCart,User,Users} from 'lucide-react';
+import {BookOpen,Building2,CheckCircle2,Clock,MapPin,RefreshCcw,Search,ShoppingCart,User,Users} from 'lucide-react';
 import type {UserProfile} from '../../types';
 
 type Term={id:string;title:string;max_credits:number;start_date:string;end_date:string};
 type Section={
- id:string;term_id:string;code:string;capacity:number;location:string;schedule:string;
+ id:string;term_id:string;code:string;capacity:number;location:string;classroom:string;schedule:string;
  course_id:string;course_code:string;course_title:string;credits:number;lecturer_name?:string|null;enrolled_count:number;program_eligible:number;
 };
 type Registration={registration_id:string;section_id:string;term_id:string;course_id:string;course_code:string;course_title:string;credits:number};
@@ -47,7 +47,8 @@ export const StudentCourseBoard:React.FC<{currentUser:UserProfile;onOpenStudentW
   const q=query.trim().toLowerCase();
   return (state?.sections||[]).filter(s=>s.term_id===termId&&(!q||
    s.course_code.toLowerCase().includes(q)||s.course_title.toLowerCase().includes(q)||
-   (s.lecturer_name||'').toLowerCase().includes(q)||(s.schedule||'').toLowerCase().includes(q)));
+   (s.lecturer_name||'').toLowerCase().includes(q)||(s.schedule||'').toLowerCase().includes(q)||
+   (s.classroom||'').toLowerCase().includes(q)));
  },[state,termId,query]);
  const selectedSections=(state?.sections||[]).filter(s=>addIds.includes(s.id));
 
@@ -115,7 +116,8 @@ export const StudentCourseBoard:React.FC<{currentUser:UserProfile;onOpenStudentW
       <span className="rounded-full bg-[#F4EDF4] px-3 py-1 text-xs font-bold text-[#4A1249]">{section.credits} credits</span></div>
      <div className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
       <p className="flex items-center gap-2"><Clock className="h-4 w-4 text-[#8B5C1C]"/>{section.schedule||'Schedule to be announced'}</p>
-      <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-[#8B5C1C]"/>{section.location||'Location to be announced'}</p>
+      <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-[#8B5C1C]"/>{section.location||'Location / delivery mode TBA'}</p>
+      <p className="flex items-center gap-2"><Building2 className="h-4 w-4 text-[#8B5C1C]"/>{section.classroom?('Classroom '+section.classroom):'Classroom TBA'}</p>
       <p className="flex items-center gap-2"><User className="h-4 w-4 text-[#8B5C1C]"/>{section.lecturer_name||'Faculty assignment pending'}</p>
       <p className="flex items-center gap-2"><Users className="h-4 w-4 text-[#8B5C1C]"/>{seats} of {section.capacity} seats available</p>
      </div>
