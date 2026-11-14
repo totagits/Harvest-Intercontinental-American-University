@@ -12,7 +12,7 @@ import {installStudentPlanning} from './studentPlanning';
 test('paid drop without replacement creates controlled refund payable and deadline blocks late Add/Drop',async()=>{
  const isoDay=(date:Date)=>date.toISOString().slice(0,10);
  const nowDate=new Date();
- const termStart=isoDay(new Date(nowDate.getTime()-60*86400000));
+ const termStart=isoDay(new Date(nowDate.getTime()-3*86400000));
  const termEnd=isoDay(new Date(nowDate.getTime()+120*86400000));
  const registrationClose=isoDay(new Date(nowDate.getTime()+30*86400000));
  const receivedDate=isoDay(nowDate);
