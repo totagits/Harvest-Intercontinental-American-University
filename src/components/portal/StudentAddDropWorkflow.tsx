@@ -33,13 +33,19 @@ type StudentState={
  carts:{term_id:string;addSectionIds:string[];dropRegistrationIds:string[];reason:string;updated_at:string}[];
 };
 const statusLabel=(s:string)=>s.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
+const placeholderValues=new Set(['','tba','tbd','to be announced','to be determined','not assigned','not configured','n/a','na','-','—']);
+const cleanValue=(value:any)=>{
+ const text=String(value||'').trim();
+ return placeholderValues.has(text.toLowerCase())?'':text;
+};
 const sectionAccess=(section:any)=>{
  const mode=section.delivery_mode||'classroom';
- const online=section.online_classroom||
+ const online=cleanValue(section.online_classroom)||
   (Number(section.has_online_classroom)===1?'Online access after enrollment':'Online classroom not configured');
+ const classroom=cleanValue(section.classroom);
  if(mode==='online')return `Online · ${online}`;
- if(mode==='hybrid')return `Hybrid · ${section.classroom?('Classroom '+section.classroom):'Classroom not assigned'} · ${online}`;
- return `Classroom · ${section.classroom?('Classroom '+section.classroom):'Classroom not assigned'}`;
+ if(mode==='hybrid')return `Hybrid · ${classroom?('Classroom '+classroom):'Classroom not assigned'} · ${online}`;
+ return `Classroom · ${classroom?('Classroom '+classroom):'Classroom not assigned'}`;
 };
 
 export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'student'|'registrar'|'finance';onOpenCourseBoard?:()=>void}>=({currentUser,mode,onOpenCourseBoard})=>{
