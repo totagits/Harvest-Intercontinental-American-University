@@ -3,6 +3,7 @@ import type { Express, Response } from 'express';
 import { Operations, WorkflowError } from './operations';
 import { actorOf } from './identity';
 import {ensureStagingAcceptanceStudent} from './stagingAcceptanceStudent';
+import {ensureStagingAcademicFixture} from './stagingAcademicFixture';
 
 export function workspacePermissions(role: string) {
   return {
@@ -251,21 +252,39 @@ export function installWorkspaces(app: Express, store: Operations) {
     if(!/^\s*MICHAEL\s+GWOAH\s*$/i.test(actor.name||''))
       return res.status(403).json({error:'This staging acceptance action is restricted to the designated test student.'});
     try{
-      const result=ensureStagingAcceptanceStudent(store,store.users(),{
+      let result=ensureStagingAcceptanceStudent(store,store.users(),{
         requestHost,accountId:actor.id,auditActor:actor,
       });
+      let academicFixture:any=null;
+      if(!result.linked&&result.reason==='no-open-term-with-sections'){
+        academicFixture=ensureStagingAcademicFixture(store,store.users(),{
+          requestHost,auditActor:actor,
+        });
+        if(academicFixture.ready){
+          result=ensureStagingAcceptanceStudent(store,store.users(),{
+            requestHost,accountId:actor.id,auditActor:actor,
+          });
+        }
+      }
       if(!result.linked){
         const messages:Record<string,string>={
-          'no-open-term-with-sections':'No open academic term with real course sections is available yet.',
+          'no-open-term-with-sections':academicFixture?.reason==='no-staff-instructor'
+            ?'The staging term could not be prepared because no authorized staff instructor account is available.'
+            :'The staging academic term and course sections could not be prepared.',
           'email-linked-to-other-account':'This email is already attached to a different student record.',
           'michael-account-not-found':'The designated MICHAEL GWOAH Student account was not found.',
         };
-        return res.status(409).json({error:messages[result.reason]||'The staging student record could not be linked.',result});
+        return res.status(409).json({
+          error:messages[result.reason]||'The staging student record could not be linked.',
+          result,academicFixture,
+        });
       }
       return res.status(result.created?201:200).json({
-        success:true,result,
+        success:true,result,academicFixture,
         message:result.created
-          ?'Staging test student record created and linked. Refreshing your Student Workspace now.'
+          ?(academicFixture?.created
+            ?'Staging acceptance term, course sections and student record were prepared and linked. Refreshing your Student Workspace now.'
+            :'Staging test student record created and linked. Refreshing your Student Workspace now.')
           :'Your staging Student account is already linked.',
       });
     }catch(error:any){
