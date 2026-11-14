@@ -6,7 +6,7 @@ export type VerifiedSearchSource = {
   registrations: Row[];
   grades: Row[];
   invoices: Row[];
-  payments: Row[];
+  payments?: Row[];
 };
 type Kind='all'|'course'|'grade'|'invoice'|'receipt';
 type Item={id:string;kind:Exclude<Kind,'all'>;title:string;detail:string;subtext:string};
@@ -51,7 +51,7 @@ export function verifiedStudentItems(source:VerifiedSearchSource):Item[]{
       subtext:[str(invoice.term_title),str(invoice.due_date)].filter(Boolean).join(' · '),
     });
   }
-  for(const payment of source.payments.filter(p=>p.status==='reconciled')){
+  for(const payment of (source.payments||[]).filter(p=>p.status==='reconciled')){
     const reference=str(payment.reference);
     items.push({
       id:'receipt:'+str(payment.id),kind:'receipt',
