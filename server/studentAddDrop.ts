@@ -7,6 +7,8 @@ import {sectionSetupComplete,sectionSetupIssue} from './sectionDelivery';
 
 const now=()=>new Date().toISOString();
 const today=()=>new Date().toISOString().slice(0,10);
+const semesterWeek=(start:string)=>Math.max(1,Math.floor((Date.now()-new Date(start+'T00:00:00Z').getTime())/(7*86400000))+1);
+const refundRate=(week:number)=>week<=2?1:week<=4?0.5:0;
 const uuid=/^[a-f0-9-]{36}$/i;
 const STAGING_HOST='hiau-staging.totag.network';
 const parseIds=(value:string)=>{try{const x=JSON.parse(value);return Array.isArray(x)?x.filter(v=>typeof v==='string'):[];}catch{return [];}};
@@ -130,15 +132,15 @@ export function installStudentAddDrop(app:Express,store:Operations){
   const resultingCredits=[...remaining,...additions].reduce((sum:any,row:any)=>sum+Number(row.credits||0),0);
   if(resultingCredits>term.max_credits)return {error:`The resulting schedule exceeds the ${term.max_credits}-credit term limit.`};
   if(resultingCredits<1)return {error:'At least one active course must remain after Add/Drop.'};
-  const rate=1;
+  const week=semesterWeek(term.start_date),rate=refundRate(week);
   let estimatedDropCredit=0;
   for(const row of current.filter((r:any)=>dropSet.has(r.registration_id))){
    const line=store.one('SELECT amount_cents FROM invoice_lines WHERE registration_id=?',row.registration_id);
-   if(line)estimatedDropCredit+=line.amount_cents;
+   if(line)estimatedDropCredit+=Math.round(line.amount_cents*rate);
   }
   const addedUnbilled=additions.reduce((sum:number,row:any)=>sum+Number(row.credits)*Number(row.fee_cents),0);
   return {term,current,additions,resultingCredits,underloadWarning:resultingCredits<12,
-    refundPercent:100,estimatedDropCredit,addedUnbilled};
+    week,refundPercent:Math.round(rate*100),estimatedDropCredit,addedUnbilled};
  };
 
  app.get('/api/student/add-drop',(req,res)=>{
