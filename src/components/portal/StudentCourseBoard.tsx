@@ -11,6 +11,12 @@ type Registration={registration_id:string;section_id:string;term_id:string;cours
 type Cart={term_id:string;addSectionIds:string[];dropRegistrationIds:string[];reason:string;updated_at:string};
 type State={linked:boolean;terms:Term[];sections:Section[];registrations:Registration[];carts:Cart[]};
 
+const placeholderValues=new Set(['','tba','tbd','to be announced','to be determined','not assigned','not configured','n/a','na','-','—']);
+const cleanValue=(value?:string|null)=>{
+ const text=String(value||'').trim();
+ return placeholderValues.has(text.toLowerCase())?'':text;
+};
+
 async function csrf(){
  const r=await fetch('/api/auth/me',{credentials:'same-origin',cache:'no-store'});
  const d=await r.json().catch(()=>({}));
@@ -121,10 +127,10 @@ export const StudentCourseBoard:React.FC<{currentUser:UserProfile;onOpenStudentW
        <span className="rounded-full bg-[#F4EDF4] px-3 py-1 text-xs font-bold text-[#4A1249]">{section.credits} credits</span></div></div>
      <div className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
       <p className="flex items-center gap-2"><Clock className="h-4 w-4 text-[#8B5C1C]"/>{section.schedule||'Schedule to be announced'}</p>
-      {mode!=='online'&&<p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-[#8B5C1C]"/>{section.location||'Campus / location not configured'}</p>}
-      {mode!=='online'&&<p className="flex items-center gap-2"><Building2 className="h-4 w-4 text-[#8B5C1C]"/>{section.classroom?('Classroom '+section.classroom):'Classroom not assigned'}</p>}
+      {mode!=='online'&&<p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-[#8B5C1C]"/>{cleanValue(section.location)||'Campus / location not configured'}</p>}
+      {mode!=='online'&&<p className="flex items-center gap-2"><Building2 className="h-4 w-4 text-[#8B5C1C]"/>{cleanValue(section.classroom)?('Classroom '+cleanValue(section.classroom)):'Classroom not assigned'}</p>}
       {mode!=='classroom'&&<p className="flex items-center gap-2"><Monitor className="h-4 w-4 text-[#8B5C1C]"/>
-       {already?(section.online_classroom||'Online classroom not configured'):(Number(section.has_online_classroom)===1?'Online access available after enrollment':'Online classroom not configured')}
+       {already?(cleanValue(section.online_classroom)||'Online classroom not configured'):(Number(section.has_online_classroom)===1?'Online access available after enrollment':'Online classroom not configured')}
       </p>}
       <p className="flex items-center gap-2"><User className="h-4 w-4 text-[#8B5C1C]"/>{section.lecturer_name||'Faculty assignment pending'}</p>
       <p className="flex items-center gap-2"><Users className="h-4 w-4 text-[#8B5C1C]"/>{seats} of {section.capacity} seats available</p>

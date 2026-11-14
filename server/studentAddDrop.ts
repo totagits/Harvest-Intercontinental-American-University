@@ -153,7 +153,7 @@ export function installStudentAddDrop(app:Express,store:Operations){
         SELECT 1 FROM registrations ownr
         WHERE ownr.student_id=? AND ownr.section_id=s.id AND ownr.status='enrolled'
       ) THEN s.online_classroom ELSE '' END AS online_classroom,
-      CASE WHEN length(trim(s.online_classroom))>0 THEN 1 ELSE 0 END AS has_online_classroom,
+      CASE WHEN lower(trim(s.online_classroom)) NOT IN ('','tba','tbd','to be announced','to be determined','not assigned','not configured','n/a','na','-','—') THEN 1 ELSE 0 END AS has_online_classroom,
       s.schedule,s.lecturer_id,
       c.id AS course_id,c.code AS course_code,c.title AS course_title,c.credits,
       u.name AS lecturer_name,

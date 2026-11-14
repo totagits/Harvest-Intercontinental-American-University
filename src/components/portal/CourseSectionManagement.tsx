@@ -12,17 +12,20 @@ type Section={
 };
 type State={terms:Term[];courses:Course[];users:Staff[];sections:Section[]};
 
+const placeholderValues=new Set(['','tba','tbd','to be announced','to be determined','not assigned','not configured','n/a','na','-','—']);
+const meaningful=(value:string)=>!placeholderValues.has(String(value||'').trim().toLowerCase());
+
 const setupIssue=(mode:'classroom'|'online'|'hybrid',location:string,classroom:string,online:string)=>{
  const missing:string[]=[];
  if(mode==='classroom'){
-  if(!location.trim())missing.push('campus / location');
-  if(!classroom.trim())missing.push('classroom / room');
+  if(!meaningful(location))missing.push('campus / location');
+  if(!meaningful(classroom))missing.push('classroom / room');
  }else if(mode==='online'){
-  if(!online.trim())missing.push('online classroom / LMS reference');
+  if(!meaningful(online))missing.push('online classroom / LMS reference');
  }else{
-  if(!location.trim())missing.push('campus / location');
-  if(!classroom.trim())missing.push('classroom / room');
-  if(!online.trim())missing.push('online classroom / LMS reference');
+  if(!meaningful(location))missing.push('campus / location');
+  if(!meaningful(classroom))missing.push('classroom / room');
+  if(!meaningful(online))missing.push('online classroom / LMS reference');
  }
  return missing.length?('Missing '+missing.join(', ')+'.'):'';
 };
