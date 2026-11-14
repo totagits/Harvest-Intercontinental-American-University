@@ -4,9 +4,12 @@ type FinancePayment={
  id:string;reference:string;external_reference?:string;amount_cents:number;method:string;received_date:string;status:string;
  reviewed_at?:string|null;review_note?:string|null;
 };
+type FinanceRefund={
+ id:string;amount_cents:number;status:string;reason:string;method?:string|null;reference?:string|null;external_reference?:string;
+};
 type FinanceInvoice={
  id:string;number:string;term_title:string;amount_cents:number;due_date:string;created_at:string;balance_cents:number;
- lines:FinanceLine[];credits:FinanceCredit[];payments:FinancePayment[];
+ lines:FinanceLine[];credits:FinanceCredit[];payments:FinancePayment[];refunds:FinanceRefund[];
 };
 
 const money=(cents:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(cents/100);
@@ -97,15 +100,18 @@ export async function downloadUniversityInvoice(input:{
  y+=5;
  const creditTotal=invoice.credits.reduce((sum,row)=>sum+row.amount_cents,0);
  const reconciledTotal=invoice.payments.filter(row=>row.status==='reconciled').reduce((sum,row)=>sum+row.amount_cents,0);
+ const paidRefundTotal=(invoice.refunds||[]).filter(row=>row.status==='paid').reduce((sum,row)=>sum+row.amount_cents,0);
  const totals=[
   ['Original billed amount',invoice.amount_cents],
   ['Posted credits / assistance',-creditTotal],
   ['Reconciled payments',-reconciledTotal],
+  ['Refunds paid',paidRefundTotal],
   ['Outstanding invoice balance',invoice.balance_cents],
  ] as const;
  for(const [label,cents] of totals){
-  doc.setFont('helvetica',label==='Current invoice balance'?'bold':'normal');
-  doc.setTextColor(label==='Current invoice balance'?74:71,label==='Current invoice balance'?18:85,label==='Current invoice balance'?73:105);
+  const balanceRow=label==='Outstanding invoice balance';
+  doc.setFont('helvetica',balanceRow?'bold':'normal');
+  doc.setTextColor(balanceRow?74:71,balanceRow?18:85,balanceRow?73:105);
   doc.text(label,118,y,{align:'right'});
   doc.text((cents<0?'-':'')+money(Math.abs(cents)),188,y,{align:'right'});y+=7;
  }
@@ -113,6 +119,14 @@ export async function downloadUniversityInvoice(input:{
   y+=3;doc.setTextColor(74,18,73);doc.setFont('helvetica','bold');doc.text('CREDITS / ASSISTANCE',18,y);y+=6;
   doc.setFont('helvetica','normal');doc.setTextColor(71,85,105);doc.setFontSize(8);
   for(const credit of invoice.credits){doc.text(doc.splitTextToSize(money(credit.amount_cents)+' · '+credit.reason,170),18,y);y+=8;}
+ }
+ if((invoice.refunds||[]).length){
+  y+=3;doc.setTextColor(74,18,73);doc.setFont('helvetica','bold');doc.text('REFUNDS',18,y);y+=6;
+  doc.setFont('helvetica','normal');doc.setTextColor(71,85,105);doc.setFontSize(8);
+  for(const refund of invoice.refunds||[]){
+   const detail=money(refund.amount_cents)+' · '+refund.status.toUpperCase()+(refund.reference?' · '+refund.reference:'');
+   doc.text(doc.splitTextToSize(detail,170),18,y);y+=8;
+  }
  }
  doc.setFillColor(250,248,251);doc.setDrawColor(222,209,227);doc.roundedRect(18,253,174,18,2,2,'FD');
  doc.setTextColor(74,18,73);doc.setFont('helvetica','bold');doc.setFontSize(8.5);
@@ -152,7 +166,7 @@ export async function downloadUniversityReceipt(input:{
  doc.setTextColor(100,116,139);doc.setFont('helvetica','bold');doc.setFontSize(8);doc.text('AMOUNT RECEIVED',26,y+12);
  doc.setTextColor(74,18,73);doc.setFontSize(25);doc.text(money(payment.amount_cents),26,y+27);
  doc.setTextColor(71,85,105);doc.setFont('helvetica','normal');doc.setFontSize(8.5);
- doc.text('Current invoice balance after all posted credits and reconciled payments:',106,y+14);
+ doc.text('Current invoice balance after posted credits, reconciled payments and paid refunds:',106,y+14);
  doc.setFont('helvetica','bold');doc.setTextColor(30,41,59);doc.setFontSize(13);doc.text(money(invoice.balance_cents),106,y+25);
  y+=54;
 
