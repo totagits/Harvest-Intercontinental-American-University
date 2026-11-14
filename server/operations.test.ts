@@ -200,10 +200,12 @@ test('clean relational workflow enforces billing, review, publication and gradua
     const receipt = db.execute(bursar, 'payment', {
       invoiceId: invoice.id,
       amount: '37.02',
-      reference: 'TEST-RECEIPT',
+      externalReference: 'TEST-BANK-RECEIPT',
       method: 'bank',
       receivedDate: '2026-01-05',
     });
+    assert.equal(receipt.reference,'HIAU-PAY-2026-000001');
+    assert.equal(receipt.external_reference,'TEST-BANK-RECEIPT');
     assert.equal(db.balance(profile.id), 3702);
     assert.throws(
       () =>
