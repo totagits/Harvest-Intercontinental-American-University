@@ -35,6 +35,15 @@ export function installStudentAddDrop(app:Express,store:Operations){
   updated_at TEXT NOT NULL
  )`);
  store.run('CREATE INDEX IF NOT EXISTS add_drop_review_queue ON student_add_drop_requests(status,created_at)');
+ store.run(`CREATE TABLE IF NOT EXISTS student_add_drop_carts(
+  student_id TEXT NOT NULL REFERENCES students(id),
+  term_id TEXT NOT NULL REFERENCES terms(id),
+  add_section_ids TEXT NOT NULL DEFAULT '[]',
+  drop_registration_ids TEXT NOT NULL DEFAULT '[]',
+  reason TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY(student_id,term_id)
+ )`);
 
  const studentFor=(res:Response)=>{
   const actor=actorOf(res);
@@ -134,14 +143,23 @@ export function installStudentAddDrop(app:Express,store:Operations){
    const student=studentFor(res);
    if(!student)return res.json({linked:false,terms:[],sections:[],registrations:[],requests:[]});
    const terms=store.all("SELECT id,title,status,max_credits,start_date,end_date FROM terms WHERE status='open' ORDER BY start_date");
-   const sections=store.all(`SELECT s.id,s.term_id,s.code,s.capacity,c.code AS course_code,c.title AS course_title,c.credits
-    FROM sections s JOIN courses c ON c.id=s.course_id JOIN terms t ON t.id=s.term_id WHERE t.status='open' ORDER BY c.code`);
-   const registrations=store.all(`SELECT r.id AS registration_id,r.section_id,s.term_id,c.code AS course_code,c.title AS course_title,c.credits
+   const sections=store.all(`SELECT s.id,s.term_id,s.code,s.capacity,s.location,s.schedule,s.lecturer_id,
+      c.id AS course_id,c.code AS course_code,c.title AS course_title,c.credits,
+      u.name AS lecturer_name,
+      (SELECT COUNT(*) FROM registrations r WHERE r.section_id=s.id AND r.status='enrolled') AS enrolled_count
+    FROM sections s JOIN courses c ON c.id=s.course_id JOIN terms t ON t.id=s.term_id
+    LEFT JOIN users u ON u.id=s.lecturer_id
+    WHERE t.status='open' ORDER BY c.code,s.code`);
+   const registrations=store.all(`SELECT r.id AS registration_id,r.section_id,s.term_id,c.id AS course_id,
+      c.code AS course_code,c.title AS course_title,c.credits,s.schedule,s.location,u.name AS lecturer_name
     FROM registrations r JOIN sections s ON s.id=r.section_id JOIN courses c ON c.id=s.course_id
+    LEFT JOIN users u ON u.id=s.lecturer_id
     WHERE r.student_id=? AND r.status='enrolled' ORDER BY c.code`,student.id);
    const requests=store.all(`SELECT * FROM student_add_drop_requests WHERE student_id=? ORDER BY created_at DESC`,student.id)
     .map((r:any)=>({...r,addSectionIds:parseIds(r.add_section_ids),dropRegistrationIds:parseIds(r.drop_registration_ids)}));
-   return res.json({linked:true,terms,sections,registrations,requests});
+   const carts=store.all(`SELECT * FROM student_add_drop_carts WHERE student_id=? ORDER BY updated_at DESC`,student.id)
+    .map((r:any)=>({...r,addSectionIds:parseIds(r.add_section_ids),dropRegistrationIds:parseIds(r.drop_registration_ids)}));
+   return res.json({linked:true,terms,sections,registrations,requests,carts});
   }
   if(!registrar(res))return res.sendStatus(403);
   const requests=store.all(`SELECT a.*,s.student_number,s.full_name,t.title AS term_title
@@ -152,6 +170,41 @@ export function installStudentAddDrop(app:Express,store:Operations){
      drops:parseIds(r.drop_registration_ids).map((id:string)=>store.one(`SELECT r.id,c.code,c.title,c.credits FROM registrations r JOIN sections s ON s.id=r.section_id JOIN courses c ON c.id=s.course_id WHERE r.id=?`,id)).filter(Boolean),
     }));
   return res.json({requests});
+ });
+
+ app.put('/api/student/add-drop/cart',express.json({limit:'12kb'}),(req,res)=>{
+  const student=studentFor(res);if(!student)return res.status(403).json({error:'A linked Student account is required.'});
+  ensureStagingSection(req,res);
+  const termId=req.body?.termId,addIds=req.body?.addSectionIds,dropIds=req.body?.dropRegistrationIds;
+  const reason=typeof req.body?.reason==='string'?req.body.reason:'';
+  if(typeof termId!=='string'||!uuid.test(termId)||!Array.isArray(addIds)||!Array.isArray(dropIds)||
+     addIds.length>10||dropIds.length>10||!addIds.every((id:any)=>typeof id==='string'&&uuid.test(id))||
+     !dropIds.every((id:any)=>typeof id==='string'&&uuid.test(id))||
+     new Set(addIds).size!==addIds.length||new Set(dropIds).size!==dropIds.length||reason.length>1000)
+    return res.status(400).json({error:'Choose valid Add/Drop cart items.'});
+  const term=store.one("SELECT id FROM terms WHERE id=? AND status='open'",termId);
+  if(!term)return res.status(409).json({error:'The selected academic term is not open.'});
+  if(addIds.length){
+    const n=store.one(`SELECT COUNT(*) AS n FROM sections WHERE term_id=? AND id IN (${addIds.map(()=>'?').join(',')})`,termId,...addIds).n;
+    if(n!==addIds.length)return res.status(409).json({error:'Every course added to the cart must be an open-term section.'});
+  }
+  if(dropIds.length){
+    const n=store.one(`SELECT COUNT(*) AS n FROM registrations r JOIN sections s ON s.id=r.section_id
+      WHERE r.student_id=? AND r.status='enrolled' AND s.term_id=? AND r.id IN (${dropIds.map(()=>'?').join(',')})`,
+      student.id,termId,...dropIds).n;
+    if(n!==dropIds.length)return res.status(409).json({error:'Every drop item must be one of your active courses in this term.'});
+  }
+  if(!addIds.length&&!dropIds.length&&!reason.trim()){
+    store.run('DELETE FROM student_add_drop_carts WHERE student_id=? AND term_id=?',student.id,termId);
+    return res.json({saved:true,cleared:true,termId,addSectionIds:[],dropRegistrationIds:[],reason:''});
+  }
+  store.run(`INSERT INTO student_add_drop_carts(student_id,term_id,add_section_ids,drop_registration_ids,reason,updated_at)
+    VALUES(?,?,?,?,?,?) ON CONFLICT(student_id,term_id) DO UPDATE SET
+    add_section_ids=excluded.add_section_ids,drop_registration_ids=excluded.drop_registration_ids,
+    reason=excluded.reason,updated_at=excluded.updated_at`,
+    student.id,termId,JSON.stringify(addIds),JSON.stringify(dropIds),reason,now());
+  store.audit(actorOf(res)!,'ADD_DROP_CART_UPDATED',student.id,null,{termId,addCount:addIds.length,dropCount:dropIds.length});
+  return res.json({saved:true,termId,addSectionIds:addIds,dropRegistrationIds:dropIds,reason});
  });
 
  app.post('/api/student/add-drop',express.json({limit:'12kb'}),(req,res)=>{
@@ -167,6 +220,7 @@ export function installStudentAddDrop(app:Express,store:Operations){
   store.run(`INSERT INTO student_add_drop_requests
    (id,student_id,term_id,add_section_ids,drop_registration_ids,reason,status,created_at,updated_at)
    VALUES(?,?,?,?,?,?,'submitted',?,?)`,id,student.id,termId,JSON.stringify(addIds),JSON.stringify(dropIds),reason.trim(),stamp,stamp);
+  store.run('DELETE FROM student_add_drop_carts WHERE student_id=? AND term_id=?',student.id,termId);
   store.audit(actorOf(res)!,'ADD_DROP_SUBMITTED',id,null,{studentId:student.id,termId,addCount:addIds.length,dropCount:dropIds.length,resultingCredits:check.resultingCredits});
   return res.status(201).json({id,status:'submitted',resultingCredits:check.resultingCredits,underloadWarning:check.underloadWarning,
    estimatedDropCreditCents:check.estimatedDropCredit,addedUnbilledCents:check.addedUnbilled});
