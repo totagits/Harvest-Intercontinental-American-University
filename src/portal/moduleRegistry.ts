@@ -25,6 +25,7 @@ export const PORTAL_MODULES = [
   { id: 'admissions', label: 'Admissions', group: 'primary' },
   { id: 'finance', label: 'Finance', group: 'primary' },
   { id: 'compliance', label: 'Compliance & Audit', group: 'primary' },
+  { id: 'accounts', label: 'Account & Integrations', group: 'primary' },
   { id: 'student_portal', label: 'Student Workspace', group: 'secondary' },
   { id: 'classroom', label: 'Online & Hybrid Classroom', group: 'secondary' },
 ] as const;
