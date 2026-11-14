@@ -18,6 +18,6 @@ test('Finance payment UI records and independently reconciles payments with HIAU
   assert.match(ui,/payment\.recorded_by===currentUser\.id/);
   assert.match(ui,/hiau-finance-primary/);
   assert.match(app,/FinancePaymentWorkflow/);
-  assert.match(assistance,/border-\[#D8C8DC\] bg-\[#FAF7FB\]/);
+  assert.match(assistance,/hiau-brand-action/);
   assert.doesNotMatch(assistance,/border-emerald-200 bg-emerald-50/);
 });
