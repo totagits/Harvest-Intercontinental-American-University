@@ -20,7 +20,7 @@ test('Registrar can set section capacity but cannot reduce it below current enro
  const program=store.execute(admin,'program',{code:'TST',title:'Test Program',requiredCredits:120});
  const term=store.execute(admin,'term',{code:'T-1',title:'Test Term',startDate:'2026-11-01',endDate:'2027-03-01',status:'open',maxCredits:18});
  const course=store.execute(admin,'course',{code:'TST-101',title:'Test Course',credits:3,feePerCredit:'100.00',programId:program.id,prerequisites:[]});
- const section=store.execute(admin,'section',{courseId:course.id,termId:term.id,lecturerId,code:'A',capacity:20,location:'Room 1',schedule:'Mon 09:00'});
+ const section=store.execute(admin,'section',{courseId:course.id,termId:term.id,lecturerId,code:'A',capacity:20,deliveryMode:'classroom',location:'Main Campus',classroom:'Room 1',schedule:'Mon 09:00'});
  assert.equal(section.capacity,20);
 
  const applicationId=crypto.randomUUID(),studentId=crypto.randomUUID(),registrationId=crypto.randomUUID();
