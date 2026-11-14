@@ -73,6 +73,12 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
   }
  },[endpoint,isStudent,termId]);
  useEffect(()=>{void load().catch(e=>setError(e instanceof Error?e.message:'Could not load Add/Drop workflow.'));},[load]);
+ useEffect(()=>{
+  if(!isFinance)return;
+  const refresh=()=>{void load().catch(e=>setError(e instanceof Error?e.message:'Could not refresh Finance Add/Drop data.'));};
+  window.addEventListener('hiau:finance-data-changed',refresh);
+  return()=>window.removeEventListener('hiau:finance-data-changed',refresh);
+ },[isFinance,load]);
 
  const student=data as StudentState|null;
  const currentRegs=useMemo(()=>isStudent?(student?.registrations||[]).filter(r=>r.term_id===termId):[],[isStudent,student,termId]);
