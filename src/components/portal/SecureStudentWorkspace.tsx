@@ -150,6 +150,6 @@ export const SecureStudentWorkspace: React.FC<{currentUser: UserProfile}> = ({cu
       {payments.length > 0 && <p className="mt-4 text-xs text-slate-600">{payments.length} payment record(s) associated with your invoices. Only reconciled transactions reduce confirmed outstanding balances.</p>}
     </Panel>
     <StudentActivityTimeline />
-    <p className="text-xs text-slate-600">This workspace displays server-authorized records only. Messaging, document issuance, and other original AI Studio features remain under controlled integration until their security and persistence checks pass.</p>
+    <p className="text-xs text-slate-600">This workspace displays server-authorized records only. Posted tuition invoices and reconciled-payment receipts can be downloaded from My Financial Statement; other document issuance remains under controlled integration until its security and persistence checks pass.</p>
   </div>;
 };
