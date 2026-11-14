@@ -20,3 +20,59 @@ h1,h2,h3,h4{letter-spacing:-.025em}.campus-workspace h2{font-family:Georgia,'Tim
 @media(max-width:700px){.campus-grid,.library-layout{grid-template-columns:1fr}.campus-panel{padding:20px}.campus-form{grid-template-columns:1fr}.campus-header-tools{flex-wrap:wrap}.campus-search{flex-basis:100%;max-width:none}.campus-map{height:310px}.campus-map button{font-size:9px;padding:8px}.campus-signal{grid-template-columns:65px 1fr}.campus-signal span{grid-column:2}.campus-language{margin-left:auto}.campus-workspace h2{font-size:36px}.campus-toast{left:16px;right:16px;bottom:16px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
 .no-scrollbar{flex-wrap:wrap;overflow:visible!important}
+
+/* HIAU current ERP shell branding for the migrated Account & Integrations module. */
+.hiau-erp-site .hiau-account-center{
+  --campus-bg:#faf8fb;
+  --campus-panel:#ffffff;
+  --campus-text:#35103b;
+  --campus-muted:#64748b;
+  --campus-border:#e6dce7;
+  --campus-accent:#4a1249;
+  --campus-soft:#f4edf4;
+  --campus-gold:#c39a53;
+}
+.hiau-erp-site .hiau-account-center .campus-button{
+  background:#4a1249;
+  color:#ffffff;
+  border-color:#4a1249;
+}
+.hiau-erp-site .hiau-account-center .campus-button.secondary{
+  background:#f4edf4;
+  color:#4a1249;
+  border-color:#d8c8dc;
+}
+.hiau-erp-site .hiau-account-center .campus-button:hover{
+  filter:none;
+  background:#35103b;
+  border-color:#35103b;
+}
+.hiau-erp-site .hiau-account-center .campus-button.secondary:hover{
+  background:#eadfeb;
+  color:#35103b;
+  border-color:#cdb8d1;
+}
+.hiau-erp-site .hiau-account-center .campus-status,
+.hiau-erp-site .hiau-account-center .campus-eyebrow{
+  color:#4a1249;
+}
+[data-theme=dark] .hiau-erp-site .hiau-account-center{
+  --campus-bg:#18111a;
+  --campus-panel:#211724;
+  --campus-text:#f4eaf5;
+  --campus-muted:#c9bacd;
+  --campus-border:#513b56;
+  --campus-accent:#d8b4dc;
+  --campus-soft:#332438;
+  --campus-gold:#d4ad65;
+}
+[data-theme=dark] .hiau-erp-site .hiau-account-center .campus-button{
+  background:#c39a53;
+  color:#211724;
+  border-color:#c39a53;
+}
+[data-theme=dark] .hiau-erp-site .hiau-account-center .campus-button.secondary{
+  background:#332438;
+  color:#f4eaf5;
+  border-color:#63496a;
+}
