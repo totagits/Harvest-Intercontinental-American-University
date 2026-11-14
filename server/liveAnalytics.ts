@@ -29,7 +29,9 @@ export function installLiveAnalytics(app: Express, store: Operations) {
       };
       const finance = {
         billedCents: number('SELECT COALESCE(SUM(amount_cents),0) AS n FROM invoices'),
-        creditsCents: number('SELECT COALESCE(SUM(amount_cents),0) AS n FROM credit_notes'),
+        creditsCents: number(`SELECT
+          COALESCE((SELECT SUM(amount_cents) FROM credit_notes),0)+
+          COALESCE((SELECT SUM(amount_cents) FROM student_assistance_awards),0) AS n`),
         reconciledCents: number("SELECT COALESCE(SUM(amount_cents),0) AS n FROM payments WHERE status='reconciled'"),
       };
       const auditCount = number('SELECT COUNT(*) AS n FROM audit');

@@ -78,6 +78,7 @@ const operationalTables = [
   'grades',
   'invoices',
   'invoice_lines',
+  'student_assistance_awards',
   'credit_notes',
   'payments',
   'graduation_reviews',
@@ -169,6 +170,19 @@ export class Operations {
         ON student_assistance_requests(status,created_at);
       CREATE TABLE IF NOT EXISTS invoices(id TEXT PRIMARY KEY,student_id TEXT NOT NULL REFERENCES students(id),term_id TEXT NOT NULL REFERENCES terms(id),number TEXT UNIQUE NOT NULL,amount_cents INTEGER NOT NULL CHECK(amount_cents>=0),due_date TEXT NOT NULL,posted_by TEXT NOT NULL REFERENCES users(id),created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS invoice_lines(id TEXT PRIMARY KEY,invoice_id TEXT NOT NULL REFERENCES invoices(id),registration_id TEXT UNIQUE NOT NULL REFERENCES registrations(id),description TEXT NOT NULL,amount_cents INTEGER NOT NULL CHECK(amount_cents>=0));
+      CREATE TABLE IF NOT EXISTS student_assistance_awards(
+        id TEXT PRIMARY KEY,
+        request_id TEXT UNIQUE NOT NULL REFERENCES student_assistance_requests(id),
+        student_id TEXT NOT NULL REFERENCES students(id),
+        term_id TEXT NOT NULL REFERENCES terms(id),
+        invoice_id TEXT NOT NULL REFERENCES invoices(id),
+        kind TEXT NOT NULL CHECK(kind IN('scholarship','financial_aid','tuition_waiver')),
+        amount_cents INTEGER NOT NULL CHECK(amount_cents>0),
+        posted_by TEXT NOT NULL REFERENCES users(id),
+        note TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS student_assistance_awards_invoice ON student_assistance_awards(invoice_id,created_at);
       CREATE TABLE IF NOT EXISTS credit_notes(id TEXT PRIMARY KEY,invoice_id TEXT NOT NULL REFERENCES invoices(id),registration_id TEXT UNIQUE NOT NULL REFERENCES registrations(id),amount_cents INTEGER NOT NULL CHECK(amount_cents>=0),reason TEXT NOT NULL,posted_by TEXT NOT NULL REFERENCES users(id),created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS payments(id TEXT PRIMARY KEY,invoice_id TEXT NOT NULL REFERENCES invoices(id),reference TEXT UNIQUE NOT NULL,amount_cents INTEGER NOT NULL CHECK(amount_cents>0),method TEXT NOT NULL CHECK(method IN('bank','mobile_money','cash')),received_date TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN('recorded','reconciled','cancelled')),recorded_by TEXT NOT NULL REFERENCES users(id),reviewed_by TEXT REFERENCES users(id),review_note TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,reviewed_at TEXT);
       CREATE TABLE IF NOT EXISTS graduation_reviews(id TEXT PRIMARY KEY,student_id TEXT UNIQUE NOT NULL REFERENCES students(id),status TEXT NOT NULL CHECK(status IN('requested','approved','rejected')),note TEXT NOT NULL DEFAULT '',reviewed_by TEXT REFERENCES users(id),created_at TEXT NOT NULL,reviewed_at TEXT);
@@ -509,7 +523,11 @@ export class Operations {
   }
   balance(studentId: string) {
     return this.one(
-      `SELECT COALESCE((SELECT SUM(amount_cents) FROM invoices WHERE student_id=?),0)-COALESCE((SELECT SUM(c.amount_cents) FROM credit_notes c JOIN invoices i ON c.invoice_id=i.id WHERE i.student_id=?),0)-COALESCE((SELECT SUM(p.amount_cents) FROM payments p JOIN invoices i ON p.invoice_id=i.id WHERE i.student_id=? AND p.status='reconciled'),0) AS cents`,
+      `SELECT COALESCE((SELECT SUM(amount_cents) FROM invoices WHERE student_id=?),0)
+        -COALESCE((SELECT SUM(c.amount_cents) FROM credit_notes c JOIN invoices i ON c.invoice_id=i.id WHERE i.student_id=?),0)
+        -COALESCE((SELECT SUM(a.amount_cents) FROM student_assistance_awards a WHERE a.student_id=?),0)
+        -COALESCE((SELECT SUM(p.amount_cents) FROM payments p JOIN invoices i ON p.invoice_id=i.id WHERE i.student_id=? AND p.status='reconciled'),0) AS cents`,
+      studentId,
       studentId,
       studentId,
       studentId,
@@ -517,7 +535,11 @@ export class Operations {
   }
   invoiceBalance(invoiceId: string) {
     return this.one(
-      `SELECT i.amount_cents-COALESCE((SELECT SUM(amount_cents) FROM credit_notes WHERE invoice_id=i.id),0)-COALESCE((SELECT SUM(amount_cents) FROM payments WHERE invoice_id=i.id AND status='reconciled'),0) AS cents FROM invoices i WHERE i.id=?`,
+      `SELECT i.amount_cents
+        -COALESCE((SELECT SUM(amount_cents) FROM credit_notes WHERE invoice_id=i.id),0)
+        -COALESCE((SELECT SUM(amount_cents) FROM student_assistance_awards WHERE invoice_id=i.id),0)
+        -COALESCE((SELECT SUM(amount_cents) FROM payments WHERE invoice_id=i.id AND status='reconciled'),0) AS cents
+        FROM invoices i WHERE i.id=?`,
       invoiceId,
     )?.cents;
   }

@@ -5,15 +5,17 @@ type Handoff={
  student_number:string;full_name:string;term_title:string;
  registered_sections:number;unbilled_sections:number;
 };
-type Quote={studentNumber:string;studentName:string;term:string;currency:string;lines:{
+type Quote={commitId:string;studentId:string;termId:string;studentNumber:string;studentName:string;term:string;currency:string;lines:{
  course_code:string;course_title:string;credits:number;fee_per_credit_cents:number;line_cents:number;invoice_number?:string|null;
  }[];indicativeUnbilledCents:number;unbilledCount:number;readyForPosting:boolean;notice:string};
 const amount=(cents:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(cents/100);
 export const FinanceRegistrationHandoff:React.FC<{currentUser:UserProfile}>=({currentUser})=>{
  const allowed=['super_admin','registrar','bursar'].includes(currentUser.role);
+ const canPost=['super_admin','bursar'].includes(currentUser.role);
  const [items,setItems]=useState<Handoff[]>([]);
- const [busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
  const [quote,setQuote]=useState<Quote|null>(null),[quoteBusy,setQuoteBusy]=useState<string|null>(null);
+ const [dueDate,setDueDate]=useState(''),[posting,setPosting]=useState(false);
  const refresh=useCallback(async()=>{
   if(!allowed)return;
   setBusy(true);setError('');
@@ -26,6 +28,28 @@ export const FinanceRegistrationHandoff:React.FC<{currentUser:UserProfile}>=({cu
   finally{setBusy(false);}
  },[allowed]);
  useEffect(()=>{void refresh();},[refresh]);
+ const postInvoice=async()=>{
+  if(!quote||!canPost||posting)return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)){setError('Choose the tuition invoice due date.');return;}
+  if(!window.confirm('Post the verified tuition invoice for '+quote.studentNumber+'? This creates an official student balance and is audited.'))return;
+  setPosting(true);setError('');setMessage('');
+  try{
+   const auth=await fetch('/api/auth/me',{credentials:'same-origin',cache:'no-store'});
+   const session=await auth.json().catch(()=>({}));
+   if(!auth.ok||typeof session.csrf!=='string'||!session.csrf)throw new Error('Session verification unavailable. Refresh and sign in again.');
+   const response=await fetch('/api/workspaces/action',{
+    method:'POST',credentials:'same-origin',
+    headers:{'Content-Type':'application/json','x-csrf-token':session.csrf},
+    body:JSON.stringify({action:'invoice',data:{studentId:quote.studentId,termId:quote.termId,dueDate}}),
+   });
+   const data=await response.json().catch(()=>({}));
+   if(!response.ok)throw new Error(data.error||'Invoice could not be posted.');
+   setMessage('Tuition invoice posted and audited. The student statement now reflects the official balance.');
+   setQuote(null);setDueDate('');
+   await refresh();
+  }catch(e){setError(e instanceof Error?e.message:'Invoice could not be posted.');}
+  finally{setPosting(false);}
+ };
  const preview=async(commitId:string)=>{
   setQuoteBusy(commitId);setError('');setQuote(null);
   try{
@@ -52,6 +76,7 @@ export const FinanceRegistrationHandoff:React.FC<{currentUser:UserProfile}>=({cu
    </button>
   </div>
   {error&&<p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
+  {message&&<p role="status" className="mt-3 text-sm text-green-800">{message}</p>}
   {!items.length?<p className="mt-4 rounded border border-dashed border-purple-200 p-4 text-sm text-slate-600">
     No course-plan registrations have been handed over for Finance review.
   </p>:<div className="mt-4 overflow-x-auto"><table className="w-full min-w-[540px] text-left text-sm">
@@ -82,6 +107,18 @@ export const FinanceRegistrationHandoff:React.FC<{currentUser:UserProfile}>=({cu
     </table></div>
     <p className="mt-3 font-semibold">Unbilled estimate: {amount(quote.indicativeUnbilledCents)} ({quote.unbilledCount} courses)</p>
     <p className="mt-1 text-xs">No amount is payable based on this preview. The approved institutional fee schedule and authorized assistance decisions must be confirmed before an invoice is posted.</p>
+    {canPost&&quote.unbilledCount>0&&<div className="mt-4 rounded-lg border border-purple-200 bg-white p-4">
+      <h4 className="font-semibold text-[#4A1249]">Authorized tuition posting</h4>
+      <p className="mt-1 text-xs text-slate-600">Posting creates the official tuition receivable for the currently unbilled registered courses. Assistance credits and payments remain separate audited actions.</p>
+      <label className="mt-3 block text-sm font-semibold">Invoice due date
+        <input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}
+          className="mt-1 block rounded border border-purple-200 p-2"/>
+      </label>
+      <button type="button" disabled={posting||!dueDate} onClick={()=>void postInvoice()}
+        className="mt-3 rounded bg-[#4A1249] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
+        {posting?'Posting invoice…':'Post verified tuition invoice'}
+      </button>
+    </div>}
    </div>}
   <p className="mt-3 text-xs leading-5 text-slate-600">
    Finance must confirm officially adopted fees, scholarship/aid awards, waiver approvals and payment deadlines before posting any financial obligation.

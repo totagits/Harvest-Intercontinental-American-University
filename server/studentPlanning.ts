@@ -179,7 +179,8 @@ export function installStudentPlanning(app:Express,store:Operations){
     const unbilled=lines.filter(line=>!line.invoice_id);
     const quote=unbilled.reduce((sum,line)=>sum+line.line_cents,0);
     return res.json({
-      commitId:commit.id,studentNumber:commit.student_number,studentName:commit.full_name,
+      commitId:commit.id,studentId:commit.student_id,termId:commit.term_id,
+      studentNumber:commit.student_number,studentName:commit.full_name,
       term:commit.term_title,currency:'USD',lines,
       unbilledCount:unbilled.length,indicativeUnbilledCents:quote,
       readyForPosting:false,
@@ -198,8 +199,16 @@ export function installStudentPlanning(app:Express,store:Operations){
       WHERE i.student_id=? ORDER BY i.created_at DESC`,student.id).map(invoice=>{
       const lines=store.all(`SELECT l.description,l.amount_cents FROM invoice_lines l
         WHERE l.invoice_id=? ORDER BY l.description`,invoice.id);
-      const credits=store.all(`SELECT c.amount_cents,c.reason,c.created_at
-        FROM credit_notes c WHERE c.invoice_id=? ORDER BY c.created_at`,invoice.id);
+      const credits=[
+        ...store.all(`SELECT c.amount_cents,c.reason,c.created_at,'credit_note' AS source
+          FROM credit_notes c WHERE c.invoice_id=?`,invoice.id),
+        ...store.all(`SELECT a.amount_cents,
+          CASE a.kind WHEN 'scholarship' THEN 'Scholarship award'
+            WHEN 'financial_aid' THEN 'Financial aid award'
+            ELSE 'Tuition waiver' END || ' — ' || a.note AS reason,
+          a.created_at,'assistance_award' AS source
+          FROM student_assistance_awards a WHERE a.invoice_id=?`,invoice.id),
+      ].sort((a:any,b:any)=>String(a.created_at).localeCompare(String(b.created_at)));
       const payments=store.all(`SELECT p.reference,p.amount_cents,p.method,p.received_date,
         p.status FROM payments p WHERE p.invoice_id=? ORDER BY p.received_date`,invoice.id);
       return {...invoice,lines,credits,payments,balance_cents:store.invoiceBalance(invoice.id)};
