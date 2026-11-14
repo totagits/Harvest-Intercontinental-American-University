@@ -5,12 +5,25 @@ import { useLocalization } from '../../i18n/Localization';
 import { parseCSV } from '../../utils/importCSV';
 
 async function request(url: string, method = 'GET', body?: any) {
+  const upper=method.toUpperCase();
+  const unsafe=!['GET','HEAD','OPTIONS'].includes(upper);
+  let csrf='';
+  if(unsafe){
+    const auth=await fetch('/api/auth/me',{credentials:'same-origin',cache:'no-store'});
+    const session=await auth.json().catch(()=>({}));
+    if(!auth.ok||typeof session.csrf!=='string'||!session.csrf)
+      throw Error('Session verification unavailable. Refresh and sign in again.');
+    csrf=session.csrf;
+  }
   const r = await fetch(url, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    method:upper,
+    credentials:'same-origin',
+    headers: body
+      ? { 'Content-Type': 'application/json', ...(unsafe?{'x-csrf-token':csrf}:{}) }
+      : unsafe ? {'x-csrf-token':csrf} : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
-  const data = await r.json();
+  const data = await r.json().catch(()=>({}));
   if (!r.ok) throw Error(data.error || 'Request failed.');
   return data;
 }
