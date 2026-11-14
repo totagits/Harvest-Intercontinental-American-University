@@ -11,6 +11,10 @@ test('Finance payment UI records and independently reconciles payments with HIAU
   assert.match(ui,/action\('reconcilePayment'/);
   assert.match(ui,/x-csrf-token/);
   assert.match(ui,/Independent reconciliation required/);
+  assert.match(ui,/External transaction reference/);
+  assert.match(ui,/HIAU payment reference/);
+  assert.match(ui,/automatically generate the official HIAU payment reference/);
+  assert.match(ui,/method!=='cash'/);
   assert.match(ui,/payment\.recorded_by===currentUser\.id/);
   assert.match(ui,/bg-\[#4A1249\]/);
   assert.match(app,/FinancePaymentWorkflow/);
