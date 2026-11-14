@@ -338,3 +338,44 @@ html.theme-light .hiau-erp-site button.hiau-action-primary {
     min-height: 40px;
   }
 }
+
+
+/* HIAU Finance assistance-credit panel: explicit brand colors and contrast. */
+.hiau-erp-site .hiau-finance-assistance-credit,
+[data-theme="light"] .hiau-erp-site .hiau-finance-assistance-credit {
+  background-color: #faf7fb !important;
+  border: 1px solid #d8c8dc !important;
+  color: #35103b !important;
+}
+.hiau-erp-site .hiau-finance-primary,
+[data-theme="light"] .hiau-erp-site .hiau-finance-primary,
+html.theme-light .hiau-erp-site .hiau-finance-primary {
+  background-color: #4a1249 !important;
+  border: 1px solid #4a1249 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+.hiau-erp-site .hiau-finance-primary:hover:not(:disabled) {
+  background-color: #35103b !important;
+  border-color: #35103b !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+.hiau-erp-site .hiau-finance-primary:disabled {
+  background-color: #e8e4ea !important;
+  border-color: #bbb2bf !important;
+  color: #544b59 !important;
+  -webkit-text-fill-color: #544b59 !important;
+  opacity: 1 !important;
+}
+[data-theme="dark"] .hiau-erp-site .hiau-finance-assistance-credit {
+  background-color: #241926 !important;
+  border-color: #63496a !important;
+  color: #f4eaf5 !important;
+}
+[data-theme="dark"] .hiau-erp-site .hiau-finance-primary {
+  background-color: #c39a53 !important;
+  border-color: #c39a53 !important;
+  color: #211724 !important;
+  -webkit-text-fill-color: #211724 !important;
+}

@@ -113,7 +113,7 @@ export const StudentAssistanceRequests:React.FC<{currentUser:UserProfile}>=({cur
       <button disabled={busy||!notes[item.id]||notes[item.id].trim().length<10} onClick={()=>void decide(item.id,'reject')}
        className="rounded border px-3 py-2 disabled:opacity-50">Reject</button>
      </div>
-     {item.status==='finance_reviewed'&&isFinance&&!item.award&&<div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+     {item.status==='finance_reviewed'&&isFinance&&!item.award&&<div className="hiau-finance-assistance-credit mt-4 rounded-lg p-3">
        <p className="font-semibold text-[#4A1249]">Post approved assistance credit</p>
        {!item.eligible_invoices?.length?<p className="mt-2 text-xs text-amber-900">A posted tuition invoice with an open balance is required before the award or waiver credit can be applied.</p>:
        <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -132,7 +132,7 @@ export const StudentAssistanceRequests:React.FC<{currentUser:UserProfile}>=({cur
           onChange={e=>setAwardNotes(v=>({...v,[item.id]:e.target.value}))}
           className="mt-1 block w-full rounded border p-2" placeholder="Approved award/waiver authority and staging test note"/></label>
         <button type="button" disabled={busy||!(awardAmounts[item.id]||'').trim()||(awardNotes[item.id]||'').trim().length<10}
-          onClick={()=>void award(item)} className="rounded bg-[#4A1249] px-3 py-2 text-sm font-bold text-white disabled:opacity-50">
+          onClick={()=>void award(item)} className="hiau-finance-primary rounded px-3 py-2 text-sm font-bold disabled:opacity-50">
           Post assistance credit
         </button>
        </div>}
