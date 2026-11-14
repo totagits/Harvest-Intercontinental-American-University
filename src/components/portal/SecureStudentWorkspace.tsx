@@ -126,7 +126,7 @@ export const SecureStudentWorkspace: React.FC<{currentUser: UserProfile}> = ({cu
         <strong className="text-2xl font-bold text-[#35103b]">{value}</strong>
       </div>)}
     </div>
-    <StudentUnifiedSearchFilter source={{registrations,grades:state?.grades ?? [],invoices}} />
+    <StudentUnifiedSearchFilter source={{registrations,grades:state?.grades ?? [],invoices,payments}} />
     <Panel title="Enrollment and published results">
       {registrations.length === 0 ? <Empty>No courses have been registered against your verified record.</Empty> :
       <div className="overflow-x-auto"><table className="w-full text-left text-sm">
