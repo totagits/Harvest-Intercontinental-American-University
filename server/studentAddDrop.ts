@@ -412,7 +412,11 @@ export function installStudentAddDrop(app:Express,store:Operations){
     if(method!=='cash'&&!externalReference)return {error:'Bank and Mobile Money refunds require an external transaction reference.',status:400};
     if(externalReference.length>120)return {error:'External transaction reference must be 120 characters or fewer.',status:400};
     const year=today().slice(0,4),key='refund_sequence_'+year;
-    const sequence=Math.max(0,Number(store.one('SELECT value FROM settings WHERE key=?',key)?.value||0))+1;
+    const existing=Number(store.one(
+      "SELECT COALESCE(MAX(CAST(substr(reference,-6) AS INTEGER)),0) AS n FROM student_refunds WHERE reference GLOB ?",
+      'HIAU-REF-'+year+'-[0-9][0-9][0-9][0-9][0-9][0-9]',
+    )?.n||0);
+    const sequence=Math.max(0,Number(store.one('SELECT value FROM settings WHERE key=?',key)?.value||0),existing)+1;
     store.run("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",key,String(sequence));
     const reference='HIAU-REF-'+year+'-'+String(sequence).padStart(6,'0');
     store.run(`UPDATE student_refunds SET status='paid',paid_by=?,paid_at=?,method=?,reference=?,external_reference=? WHERE id=?`,
