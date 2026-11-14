@@ -2,7 +2,7 @@ import React,{useCallback,useEffect,useMemo,useState} from 'react';
 import {BookOpen,Building2,CheckCircle2,Clock,MapPin,Monitor,RefreshCcw,Search,ShoppingCart,User,Users} from 'lucide-react';
 import type {UserProfile} from '../../types';
 
-type Term={id:string;title:string;max_credits:number;start_date:string;end_date:string};
+type Term={id:string;title:string;max_credits:number;start_date:string;end_date:string;registration_close_date:string;registration_closed?:boolean};
 type Section={
  id:string;term_id:string;code:string;capacity:number;delivery_mode:'classroom'|'online'|'hybrid';location:string;classroom:string;online_classroom:string;schedule:string;
  course_id:string;course_code:string;course_title:string;credits:number;lecturer_name?:string|null;enrolled_count:number;program_eligible:number;has_online_classroom:number;setup_complete:number;setup_issue:string;
@@ -45,6 +45,8 @@ export const StudentCourseBoard:React.FC<{currentUser:UserProfile;onOpenStudentW
  },[termId]);
  useEffect(()=>{void load().catch(e=>setError(e instanceof Error?e.message:'Could not load the University Course Board.'));},[load]);
 
+ const activeTerm=state?.terms?.find(t=>t.id===termId);
+ const registrationClosed=!!activeTerm?.registration_closed;
  const cart=state?.carts?.find(c=>c.term_id===termId);
  const addIds=cart?.addSectionIds||[];
  const dropIds=cart?.dropRegistrationIds||[];
@@ -88,12 +90,15 @@ export const StudentCourseBoard:React.FC<{currentUser:UserProfile;onOpenStudentW
     <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
      <label className="text-sm font-semibold">Academic term<select value={termId} onChange={e=>setTermId(e.target.value)}
       className="mt-1 block w-full rounded-lg border border-[#D8C8DC] bg-white p-2.5">
-      {state.terms.map(t=><option key={t.id} value={t.id}>{t.title} — maximum {t.max_credits} credits</option>)}
+      {state.terms.map(t=><option key={t.id} value={t.id}>{t.title} — maximum {t.max_credits} credits{t.registration_closed?' — registration closed':''}</option>)}
      </select></label>
      <label className="text-sm font-semibold">Search course board<div className="relative mt-1"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400"/>
       <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Course code, title, lecturer or schedule"
        className="w-full rounded-lg border border-[#D8C8DC] bg-white py-2.5 pl-9 pr-3"/></div></label>
     </div>
+    {activeTerm&&<div className={"mt-4 rounded-lg border p-3 text-sm "+(registrationClosed?'border-rose-200 bg-rose-50 text-rose-800':'border-[#E5D3A6] bg-[#FFF9EA] text-[#6F4F16]')}>
+     Registration / Add-Drop closes: <strong>{activeTerm.registration_close_date}</strong>{registrationClosed?' — deadline passed; new Add/Drop changes are blocked.':''}
+    </div>}
     <div className="mt-4 rounded-xl border border-[#E6DCE7] bg-[#FAF8FB] p-4">
      <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h3 className="flex items-center gap-2 font-bold text-[#4A1249]"><ShoppingCart className="h-5 w-5"/>My Add/Drop Cart</h3>
@@ -140,10 +145,11 @@ export const StudentCourseBoard:React.FC<{currentUser:UserProfile;onOpenStudentW
       <div className="text-xs">{already?<span className="inline-flex items-center gap-1 font-semibold text-[#4A1249]"><CheckCircle2 className="h-4 w-4"/>In My Courses</span>:
        !setupComplete?<span className="font-semibold text-[#8B5C1C]">Section setup incomplete — not available for registration</span>:
        !programEligible?<span className="font-semibold text-slate-500">Not currently approved for your program</span>:
+       registrationClosed?<span className="font-semibold text-rose-700">Registration / Add-Drop deadline passed</span>:
        full?<span className="font-semibold text-rose-700">Section full</span>:
        inCart?<span className="font-semibold text-[#4A1249]">In Add/Drop Cart</span>:
        <span className="text-slate-600">Available to request</span>}</div>
-      {!already&&setupComplete&&programEligible&&!full&&(inCart?
+      {!already&&setupComplete&&programEligible&&!registrationClosed&&!full&&(inCart?
        <button type="button" disabled={busy===section.id} onClick={()=>void updateAddition(section.id,true)}
         className="rounded-lg border border-[#4A1249] px-3 py-2 text-xs font-semibold text-[#4A1249] disabled:opacity-50">Remove from cart</button>:
        <button type="button" disabled={busy===section.id} onClick={()=>void updateAddition(section.id)}
