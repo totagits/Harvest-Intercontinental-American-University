@@ -13,11 +13,13 @@ test('student finance PDFs use HIAU branding and only reconciled payments receiv
  assert.doesNotMatch(docs,/Gwoah's University/);
  assert.match(docs,/OFFICIAL TUITION INVOICE/);
  assert.match(docs,/OFFICIAL PAYMENT RECEIPT/);
+ assert.match(docs,/HIAU payment reference/);
+ assert.match(docs,/External transaction reference/);
  assert.match(docs,/payment\.status!=='reconciled'/);
  assert.match(statement,/Download invoice PDF/);
  assert.match(statement,/Download official receipt/);
  assert.match(statement,/payment\.status==='reconciled'/);
- assert.match(api,/p\.id,p\.reference,p\.amount_cents/);
+ assert.match(api,/p\.id,p\.reference,p\.external_reference,p\.amount_cents/);
  assert.match(api,/studentName:student\.full_name/);
  assert.match(workspace,/timeZone:'UTC'/);
  assert.match(workspace,/reconciled-payment receipts/);
