@@ -7,6 +7,7 @@ test('section management and Course Board distinguish Classroom, Online and Hybr
  const board=readFileSync(new URL('../src/components/portal/StudentCourseBoard.tsx',import.meta.url),'utf8');
  const cart=readFileSync(new URL('../src/components/portal/StudentAddDropWorkflow.tsx',import.meta.url),'utf8');
  const operations=readFileSync(new URL('./operations.ts',import.meta.url),'utf8');
+ const delivery=readFileSync(new URL('./sectionDelivery.ts',import.meta.url),'utf8');
  const server=readFileSync(new URL('./studentAddDrop.ts',import.meta.url),'utf8');
 
  assert.match(admin,/Delivery mode/);
@@ -25,9 +26,10 @@ test('section management and Course Board distinguish Classroom, Online and Hybr
 
  assert.match(operations,/delivery_mode/);
  assert.match(operations,/online_classroom/);
- assert.match(operations,/Classroom sections require both a campus \/ location and a classroom \/ room/);
- assert.match(operations,/Online sections require an online classroom \/ LMS reference/);
- assert.match(operations,/Hybrid sections require campus \/ location, classroom \/ room, and an online classroom \/ LMS reference/);
+ assert.match(operations,/sectionSetupIssue/);
+ assert.match(delivery,/Campus \/ location and classroom \/ room are required/);
+ assert.match(delivery,/Online classroom \/ LMS reference is required/);
+ assert.match(delivery,/Hybrid setup incomplete/);
 
  assert.match(server,/has_online_classroom/);
  assert.match(server,/THEN s\.online_classroom ELSE '' END AS online_classroom/);
