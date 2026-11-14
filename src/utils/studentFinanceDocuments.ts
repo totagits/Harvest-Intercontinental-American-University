@@ -115,6 +115,9 @@ export async function downloadUniversityInvoice(input:{
   doc.text(label,118,y,{align:'right'});
   doc.text((cents<0?'-':'')+money(Math.abs(cents)),188,y,{align:'right'});y+=7;
  }
+ doc.setFont('helvetica','bold');doc.setTextColor(74,18,73);
+ doc.text('Invoice status',118,y,{align:'right'});
+ doc.text(invoice.balance_cents<0?'CREDIT / REFUND DUE':invoice.balance_cents===0?'PAID IN FULL':'PAYMENT DUE',188,y,{align:'right'});y+=7;
  if(invoice.credits.length){
   y+=3;doc.setTextColor(74,18,73);doc.setFont('helvetica','bold');doc.text('CREDITS / ASSISTANCE',18,y);y+=6;
   doc.setFont('helvetica','normal');doc.setTextColor(71,85,105);doc.setFontSize(8);
