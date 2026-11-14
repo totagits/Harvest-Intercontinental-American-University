@@ -226,7 +226,7 @@ export function installWorkspaces(app: Express, store: Operations) {
       // Deliberately narrow: no raw audit snapshots and no staff/internal records.
       // This is a history of the student's OWN actions, not a general activity feed.
       const activities = store.all(
-        "SELECT id,action,created_at FROM audit WHERE actor_id=? AND action IN ('register','drop','graduationRequest','transcriptRequest') ORDER BY created_at DESC,rowid DESC LIMIT 40",
+        "SELECT id,action,created_at FROM audit WHERE actor_id=? AND action IN ('register','drop','graduationRequest','transcriptRequest','ADD_DROP_SUBMITTED') ORDER BY created_at DESC,rowid DESC LIMIT 40",
         actor.id,
       );
       return res.json({ activities });
