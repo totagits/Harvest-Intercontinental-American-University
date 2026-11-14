@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import type { Express, Response } from 'express';
 import { Operations, WorkflowError } from './operations';
 import { actorOf } from './identity';
+import {ensureStagingAcceptanceStudent} from './stagingAcceptanceStudent';
 
 export function workspacePermissions(role: string) {
   return {
@@ -240,6 +241,39 @@ export function installWorkspaces(app: Express, store: Operations) {
     try{configuredHost=new URL(process.env.APP_URL||'https://invalid.local').hostname.toLowerCase();}catch{}
     return requestHost==='hiau-staging.totag.network'||configuredHost==='hiau-staging.totag.network';
   };
+  app.post('/api/workspaces/staging-student-self-link',(req,res)=>{
+    const actor=actorOf(res);
+    if(!actor||actor.role!=='student')
+      return res.status(403).json({error:'Student authorization required.'});
+    const requestHost=String(req.hostname||req.get?.('host')||'').toLowerCase().split(':')[0];
+    if(requestHost!=='hiau-staging.totag.network')
+      return res.status(404).json({error:'Staging acceptance utility is unavailable.'});
+    if(!/^\s*MICHAEL\s+GWOAH\s*$/i.test(actor.name||''))
+      return res.status(403).json({error:'This staging acceptance action is restricted to the designated test student.'});
+    try{
+      const result=ensureStagingAcceptanceStudent(store,store.users(),{
+        requestHost,accountId:actor.id,auditActor:actor,
+      });
+      if(!result.linked){
+        const messages:Record<string,string>={
+          'no-open-term-with-sections':'No open academic term with real course sections is available yet.',
+          'email-linked-to-other-account':'This email is already attached to a different student record.',
+          'michael-account-not-found':'The designated MICHAEL GWOAH Student account was not found.',
+        };
+        return res.status(409).json({error:messages[result.reason]||'The staging student record could not be linked.',result});
+      }
+      return res.status(result.created?201:200).json({
+        success:true,result,
+        message:result.created
+          ?'Staging test student record created and linked. Refreshing your Student Workspace now.'
+          :'Your staging Student account is already linked.',
+      });
+    }catch(error:any){
+      return res.status(error instanceof WorkflowError?error.status:500).json({
+        error:error instanceof WorkflowError?error.message:'Could not complete the staging student link.',
+      });
+    }
+  });
   // Explicit staging-only acceptance fixture. This is intentionally NOT part
   // of the production admissions workflow. It creates no grades, registration,
   // invoice, aid, payment or credit records and is hard-blocked outside the
