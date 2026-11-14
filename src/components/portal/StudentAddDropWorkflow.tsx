@@ -27,12 +27,18 @@ async function putCart(body:object){
 type StudentState={
  linked:boolean;
  terms:{id:string;title:string;max_credits:number}[];
- sections:{id:string;term_id:string;course_id:string;course_code:string;course_title:string;credits:number;schedule?:string;location?:string;classroom?:string}[];
- registrations:{registration_id:string;section_id:string;term_id:string;course_id:string;course_code:string;course_title:string;credits:number;schedule?:string;location?:string;classroom?:string}[];
+ sections:{id:string;term_id:string;course_id:string;course_code:string;course_title:string;credits:number;schedule?:string;delivery_mode?:'classroom'|'online'|'hybrid';location?:string;classroom?:string;online_classroom?:string}[];
+ registrations:{registration_id:string;section_id:string;term_id:string;course_id:string;course_code:string;course_title:string;credits:number;schedule?:string;delivery_mode?:'classroom'|'online'|'hybrid';location?:string;classroom?:string;online_classroom?:string}[];
  requests:any[];
  carts:{term_id:string;addSectionIds:string[];dropRegistrationIds:string[];reason:string;updated_at:string}[];
 };
 const statusLabel=(s:string)=>s.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
+const sectionAccess=(section:any)=>{
+ const mode=section.delivery_mode||'classroom';
+ if(mode==='online')return `Online · ${section.online_classroom||'Online classroom TBA'}`;
+ if(mode==='hybrid')return `Hybrid · ${section.classroom?('Classroom '+section.classroom):'Classroom TBA'} · ${section.online_classroom||'Online classroom TBA'}`;
+ return `Classroom · ${section.classroom?('Classroom '+section.classroom):'Classroom TBA'}`;
+};
 
 export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'student'|'registrar'|'finance';onOpenCourseBoard?:()=>void}>=({currentUser,mode,onOpenCourseBoard})=>{
  const isStudent=mode==='student'&&currentUser.role==='student';
@@ -152,7 +158,7 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
      {onOpenCourseBoard&&<button type="button" onClick={onOpenCourseBoard} className="text-xs font-semibold text-[#4A1249] underline">Browse courses</button>}
     </div>
     <div className="mt-3 space-y-2">{selectedAdditions.length?selectedAdditions.map(s=><div key={s.id} className="flex items-start justify-between gap-3 rounded-lg bg-[#FAF8FB] p-3">
-     <span><strong>{s.course_code}</strong> — {s.course_title}<br/><span className="text-xs text-slate-600">{s.credits} credits · {s.schedule||'Schedule pending'} · {s.classroom?('Classroom '+s.classroom):'Classroom TBA'}</span></span>
+     <span><strong>{s.course_code}</strong> — {s.course_title}<br/><span className="text-xs text-slate-600">{s.credits} credits · {s.schedule||'Schedule pending'} · {sectionAccess(s)}</span></span>
      <button type="button" disabled={busy} onClick={()=>void removeAddition(s.id)} className="shrink-0 rounded border border-[#4A1249] px-2 py-1 text-xs font-semibold text-[#4A1249] disabled:opacity-50">Remove</button>
     </div>):<p className="rounded border border-dashed border-[#D8C8DC] p-3 text-sm text-slate-600">No additions selected. Use Academic Planning → University Course Board to add a course to this cart.</p>}</div>
     </div>
@@ -161,7 +167,7 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
      <p className="mt-1 text-xs text-slate-600">Only courses already in your official current enrollment can be selected for drop.</p>
      <div className="mt-3 space-y-2">{currentRegs.length?currentRegs.map(r=><label key={r.registration_id} className="flex gap-3 rounded-lg bg-[#FAF8FB] p-3">
       <input type="checkbox" checked={drops.includes(r.registration_id)} disabled={busy} onChange={e=>void toggleDrop(r.registration_id,e.target.checked)}/>
-      <span><strong>{r.course_code}</strong> — {r.course_title}<br/><span className="text-xs text-slate-600">{r.credits} credits · {r.schedule||'Schedule pending'} · {r.classroom?('Classroom '+r.classroom):'Classroom TBA'}</span></span></label>):<p className="text-sm text-slate-600">No active registrations in this term.</p>}</div>
+      <span><strong>{r.course_code}</strong> — {r.course_title}<br/><span className="text-xs text-slate-600">{r.credits} credits · {r.schedule||'Schedule pending'} · {sectionAccess(r)}</span></span></label>):<p className="text-sm text-slate-600">No active registrations in this term.</p>}</div>
     </div>
    </div>
 
