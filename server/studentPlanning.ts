@@ -39,7 +39,7 @@ export function installStudentPlanning(app:Express,store:Operations){
       return 'Select one to twenty unique term sections.';
     const term=store.one('SELECT * FROM terms WHERE id=?',termId);
     if(!term||term.status!=='open')return 'Course planning is not open for this term.';
-    const registrationClose=store.one('SELECT value FROM settings WHERE key=?','term_registration_close_'+term.id)?.value||term.end_date;
+    const registrationClose=store.one('SELECT close_date FROM term_registration_deadlines WHERE term_id=?',term.id)?.close_date||term.end_date;
     if(today()>registrationClose)return `Registration closed on ${registrationClose}. Course planning and registration changes are no longer permitted.`;
     if(student.status!=='active'||student.financial_hold)return 'Student must be active without an academic finance hold.';
     const placeholders=sectionIds.map(()=>'?').join(',');
@@ -83,7 +83,7 @@ export function installStudentPlanning(app:Express,store:Operations){
         WHERE p.student_id=? ORDER BY p.updated_at DESC`,record.id).map(inspect);
       const terms=store.all("SELECT id,title,status,max_credits,start_date,end_date FROM terms WHERE status='open' ORDER BY start_date")
         .map((term:any)=>{
-          const registration_close_date=store.one('SELECT value FROM settings WHERE key=?','term_registration_close_'+term.id)?.value||term.end_date;
+          const registration_close_date=store.one('SELECT close_date FROM term_registration_deadlines WHERE term_id=?',term.id)?.close_date||term.end_date;
           return {...term,registration_close_date,registration_closed:today()>registration_close_date};
         });
       const sections=store.all(`SELECT s.*,c.code AS course_code,c.title AS course_title,c.credits
