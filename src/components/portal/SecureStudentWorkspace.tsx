@@ -38,6 +38,8 @@ export const SecureStudentWorkspace: React.FC<{currentUser: UserProfile}> = ({cu
   const [state,setState] = useState<State | null>(null);
   const [loading,setLoading] = useState(true);
   const [error,setError] = useState('');
+  const [linking,setLinking] = useState(false);
+  const [linkError,setLinkError] = useState('');
   const refresh = async (signal?: AbortSignal) => {
     setLoading(true);setError('');
     try {
@@ -51,6 +53,26 @@ export const SecureStudentWorkspace: React.FC<{currentUser: UserProfile}> = ({cu
       if (!signal?.aborted) {setState(null);setError(e instanceof Error ? e.message : 'Unable to load records.');}
     } finally {if (!signal?.aborted)setLoading(false);}
   };
+  const completeStagingLink = async () => {
+    if (linking) return;
+    setLinking(true);setLinkError('');
+    try {
+      const auth=await fetch('/api/auth/me',{credentials:'same-origin',cache:'no-store'});
+      const session=await auth.json().catch(()=>({}));
+      if(!auth.ok||typeof session.csrf!=='string'||!session.csrf)
+        throw new Error('Session verification unavailable. Refresh and sign in again.');
+      const response=await fetch('/api/workspaces/staging-student-self-link',{
+        method:'POST',credentials:'same-origin',
+        headers:{'Content-Type':'application/json','x-csrf-token':session.csrf},
+        body:JSON.stringify({acceptanceTest:true}),
+      });
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(data.error||'The staging student record could not be linked.');
+      await refresh();
+    } catch(e) {
+      setLinkError(e instanceof Error?e.message:'The staging student record could not be linked.');
+    } finally { setLinking(false); }
+  };
   useEffect(() => {
     if (currentUser.role !== 'student') { setLoading(false);setState(null);return; }
     const controller=new AbortController();
@@ -62,7 +84,23 @@ export const SecureStudentWorkspace: React.FC<{currentUser: UserProfile}> = ({cu
   if (loading) return <div role="status" className="rounded-xl bg-white p-8 text-slate-700">Loading verified academic records…</div>;
   if (error) return <div role="alert" className="rounded-xl border border-red-200 bg-white p-6 text-red-800">{error}<button type="button" onClick={() => void refresh()} className="ml-3 underline">Retry</button></div>;
   const student = state?.ownStudent;
-  if (!student) return <Panel title="Student record not yet linked"><Empty>Your university administrator or registrar must link an approved student record to this account. No sample profile is displayed.</Empty></Panel>;
+  if (!student) {
+    const stagingMichael=window.location.hostname==='hiau-staging.totag.network' &&
+      /^\s*MICHAEL\s+GWOAH\s*$/i.test(currentUser.name||'');
+    return <Panel title="Student record not yet linked">
+      <Empty>Your university administrator or registrar must link an approved student record to this account. No sample profile is displayed.</Empty>
+      {stagingMichael&&<div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
+        <p className="text-sm font-semibold text-[#35103b]">Staging acceptance test</p>
+        <p className="mt-1 text-sm text-slate-700">Use this staging-only action to create and link the designated admitted/active MICHAEL GWOAH test record. It does not create grades, registrations, invoices, payments, aid awards or course plans.</p>
+        {linkError&&<p role="alert" className="mt-3 rounded-lg border border-red-200 bg-white p-3 text-sm text-red-800">{linkError}</p>}
+        <button type="button" onClick={()=>void completeStagingLink()} disabled={linking}
+          className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#4a1249] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
+          <RefreshCw className={"h-4 w-4 "+(linking?'animate-spin':'')}/>
+          {linking?'Linking staging student…':'Complete staging test student link'}
+        </button>
+      </div>}
+    </Panel>;
+  }
   const registrations = (state?.registrations ?? []).filter(r => r.student_id === student.id);
   const gradesByRegistration = new Map((state?.grades ?? []).filter(g=>g.status === 'published').map(g=>[g.registration_id,g]));
   const invoices = (state?.invoices ?? []).filter(i=>i.student_id === student.id);
