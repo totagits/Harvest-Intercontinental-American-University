@@ -65,6 +65,7 @@ const day = (value: unknown, name: string) => {
 const operationalTables = [
   'programs',
   'terms',
+  'term_registration_deadlines',
   'courses',
   'course_prerequisites',
   'program_requirements',
@@ -114,6 +115,12 @@ export class Operations {
       CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL COLLATE NOCASE,name TEXT NOT NULL,role TEXT NOT NULL,title TEXT NOT NULL DEFAULT '',department TEXT NOT NULL DEFAULT '');
       CREATE TABLE IF NOT EXISTS programs(id TEXT PRIMARY KEY,code TEXT UNIQUE NOT NULL,title TEXT NOT NULL,required_credits INTEGER NOT NULL CHECK(required_credits>0),created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS terms(id TEXT PRIMARY KEY,code TEXT UNIQUE NOT NULL,title TEXT NOT NULL,start_date TEXT NOT NULL,end_date TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN('draft','open','closed')),max_credits INTEGER NOT NULL CHECK(max_credits>0),created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS term_registration_deadlines(
+        term_id TEXT PRIMARY KEY REFERENCES terms(id),
+        close_date TEXT NOT NULL,
+        updated_by TEXT,
+        updated_at TEXT NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS courses(id TEXT PRIMARY KEY,code TEXT UNIQUE NOT NULL,title TEXT NOT NULL,credits INTEGER NOT NULL CHECK(credits>0),fee_cents INTEGER NOT NULL CHECK(fee_cents>=0),created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS course_prerequisites(course_id TEXT NOT NULL REFERENCES courses(id),requires_id TEXT NOT NULL REFERENCES courses(id),PRIMARY KEY(course_id,requires_id),CHECK(course_id<>requires_id));
       CREATE TABLE IF NOT EXISTS program_requirements(program_id TEXT NOT NULL REFERENCES programs(id),course_id TEXT NOT NULL REFERENCES courses(id),PRIMARY KEY(program_id,course_id));
@@ -723,9 +730,11 @@ export class Operations {
           ...Object.values(result),
         );
         this.run(
-          'INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
-          'term_registration_close_'+result.id,
+          'INSERT INTO term_registration_deadlines(term_id,close_date,updated_by,updated_at) VALUES(?,?,?,?)',
+          result.id,
           registrationClose,
+          actor.id,
+          now(),
         );
       } else if (action === 'termRegistrationDeadline') {
         this.permitted(actor, ['registrar']);
@@ -735,9 +744,11 @@ export class Operations {
         if (registrationClose < before.start_date || registrationClose > before.end_date)
           throw new WorkflowError('Registration / Add-Drop closing date must fall within the academic term.');
         this.run(
-          'INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
-          'term_registration_close_'+before.id,
+          'INSERT INTO term_registration_deadlines(term_id,close_date,updated_by,updated_at) VALUES(?,?,?,?) ON CONFLICT(term_id) DO UPDATE SET close_date=excluded.close_date,updated_by=excluded.updated_by,updated_at=excluded.updated_at',
+          before.id,
           registrationClose,
+          actor.id,
+          now(),
         );
         result = { ...before, registration_close_date: registrationClose };
       } else if (action === 'termStatus') {
