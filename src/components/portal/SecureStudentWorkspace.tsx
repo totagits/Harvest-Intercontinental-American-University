@@ -24,8 +24,10 @@ const money = (cents: unknown) =>
     : 'Not available';
 const stamp = (value: unknown) => {
   const text = string(value);
-  const date = new Date(text);
-  return text && !Number.isNaN(date.getTime()) ? date.toLocaleDateString() : 'Not recorded';
+  const match=/^(\d{4})-(\d{2})-(\d{2})/.exec(text);
+  if(!match)return 'Not recorded';
+  const date=new Date(Date.UTC(Number(match[1]),Number(match[2])-1,Number(match[3])));
+  return new Intl.DateTimeFormat('en-US',{year:'numeric',month:'2-digit',day:'2-digit',timeZone:'UTC'}).format(date);
 };
 const Panel: React.FC<{title: string; children: React.ReactNode}> = ({title,children}) =>
   <section className="rounded-2xl border border-[#e6dce7] bg-white p-5 shadow-sm">
