@@ -183,8 +183,10 @@ export function installStudentPlanning(app:Express,store:Operations){
       studentNumber:commit.student_number,studentName:commit.full_name,
       term:commit.term_title,currency:'USD',lines,
       unbilledCount:unbilled.length,indicativeUnbilledCents:quote,
-      readyForPosting:false,
-      notice:'Indicative only: current course fee fields are not an approved institutional fee schedule. No invoice, waiver, scholarship, payment or debt has been created by this preview.'
+      readyForPosting:unbilled.length>0,
+      notice:unbilled.length>0
+        ?'Indicative only: current course fee fields are not an approved institutional fee schedule. This preview has not created an invoice, waiver, scholarship, payment or debt.'
+        :'All registered sections in this plan are already linked to a posted invoice. This preview does not create another charge; use the posted invoice and student statement for the official payable balance.'
     });
   });
   // Authenticated student's OWN posted statement. No unposted estimates,

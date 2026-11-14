@@ -95,7 +95,7 @@ export const FinanceRegistrationHandoff:React.FC<{currentUser:UserProfile}>=({cu
    </tr>)}</tbody>
   </table></div>}
   {quote&&<div className="mt-5 rounded-lg border border-amber-300 bg-amber-50 p-4" aria-label="Indicative fees preview">
-    <h3 className="font-bold text-[#4A1249]">Indicative fees — {quote.studentNumber} · {quote.term}</h3>
+    <h3 className="font-bold text-[#4A1249]">{quote.unbilledCount>0?'Indicative fees':'Posted invoice status'} — {quote.studentNumber} · {quote.term}</h3>
     <p className="mt-2 text-xs text-amber-900">{quote.notice}</p>
     <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[440px] text-left text-sm">
       <thead><tr><th className="p-2">Course</th><th className="p-2">Credits</th><th className="p-2">Per credit</th><th className="p-2">Line</th><th className="p-2">Billing</th></tr></thead>
@@ -106,7 +106,9 @@ export const FinanceRegistrationHandoff:React.FC<{currentUser:UserProfile}>=({cu
       </tr>)}</tbody>
     </table></div>
     <p className="mt-3 font-semibold">Unbilled estimate: {amount(quote.indicativeUnbilledCents)} ({quote.unbilledCount} courses)</p>
-    <p className="mt-1 text-xs">No amount is payable based on this preview. The approved institutional fee schedule and authorized assistance decisions must be confirmed before an invoice is posted.</p>
+    <p className="mt-1 text-xs">{quote.unbilledCount>0
+      ?'No amount is payable based on this preview. The approved institutional fee schedule and authorized assistance decisions must be confirmed before an invoice is posted.'
+      :'These courses are already billed. The official payable amount is the posted invoice balance shown on the student financial statement; this panel will not create a duplicate charge.'}</p>
     {canPost&&quote.unbilledCount>0&&<div className="mt-4 rounded-lg border border-purple-200 bg-white p-4">
       <h4 className="font-semibold text-[#4A1249]">Authorized tuition posting</h4>
       <p className="mt-1 text-xs text-slate-600">Posting creates the official tuition receivable for the currently unbilled registered courses. Assistance credits and payments remain separate audited actions.</p>
