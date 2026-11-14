@@ -179,7 +179,8 @@ export function installStudentPlanning(app:Express,store:Operations){
     const unbilled=lines.filter(line=>!line.invoice_id);
     const quote=unbilled.reduce((sum,line)=>sum+line.line_cents,0);
     return res.json({
-      commitId:commit.id,studentNumber:commit.student_number,studentName:commit.full_name,
+      commitId:commit.id,studentId:commit.student_id,termId:commit.term_id,
+      studentNumber:commit.student_number,studentName:commit.full_name,
       term:commit.term_title,currency:'USD',lines,
       unbilledCount:unbilled.length,indicativeUnbilledCents:quote,
       readyForPosting:false,
