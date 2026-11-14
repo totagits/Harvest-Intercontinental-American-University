@@ -743,7 +743,7 @@ export class Operations {
           code: text(data.code, 'Section code', 30),
           capacity: integer(data.capacity, 'Capacity', 1, 10000),
           delivery_mode: deliveryMode,
-          location,
+          location: deliveryMode === 'online' ? '' : location,
           classroom: deliveryMode === 'online' ? '' : classroom,
           online_classroom:
             deliveryMode === 'classroom' ? '' : onlineClassroom,
@@ -824,7 +824,7 @@ export class Operations {
           'UPDATE sections SET capacity=?,delivery_mode=?,location=?,classroom=?,online_classroom=? WHERE id=?',
           capacity,
           deliveryMode,
-          location,
+          deliveryMode === 'online' ? '' : location,
           deliveryMode === 'online' ? '' : nextClassroom,
           deliveryMode === 'classroom' ? '' : onlineClassroom,
           before.id,
