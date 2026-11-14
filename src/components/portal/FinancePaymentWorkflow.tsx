@@ -60,6 +60,15 @@ export const FinancePaymentWorkflow:React.FC<{currentUser:UserProfile}>=({curren
  },[]);
 
  useEffect(()=>{void load().catch(e=>setError(e instanceof Error?e.message:'Could not load payment records.'));},[load]);
+ useEffect(()=>{
+  const refresh=(event:Event)=>{
+   const source=(event as CustomEvent<{source?:string}>).detail?.source||'';
+   if(source.startsWith('payment-'))return;
+   void load().catch(e=>setError(e instanceof Error?e.message:'Could not refresh payment records.'));
+  };
+  window.addEventListener('hiau:finance-data-changed',refresh);
+  return()=>window.removeEventListener('hiau:finance-data-changed',refresh);
+ },[load]);
 
  const openInvoices=useMemo(()=>state?.invoices.filter(invoice=>invoice.balance_cents>0)||[],[state]);
  const selected=openInvoices.find(invoice=>invoice.id===invoiceId)||openInvoices[0]||null;
