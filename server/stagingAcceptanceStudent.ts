@@ -22,12 +22,15 @@ export type StagingAcceptanceStudentResult={
 export function ensureStagingAcceptanceStudent(
   store:Operations,
   accounts:any[],
+  options:{requestHost?:string;accountId?:string;auditActor?:any}={},
 ):StagingAcceptanceStudentResult{
-  if(configuredHost()!==STAGING_HOST)
+  const activeHost=(options.requestHost||configuredHost()).toLowerCase().split(':')[0];
+  if(activeHost!==STAGING_HOST)
     return {staging:false,created:false,linked:false,reason:'not-staging'};
 
   const account=accounts.find(user=>
     user?.role==='student' &&
+    (!options.accountId||user?.id===options.accountId) &&
     /^\s*MICHAEL\s+GWOAH\s*$/i.test(String(user?.name||'')) &&
     typeof user?.id==='string' &&
     typeof user?.email==='string'
@@ -47,7 +50,7 @@ export function ensureStagingAcceptanceStudent(
     if(!byEmail.user_id){
       store.transaction(()=>{
         store.run('UPDATE students SET user_id=? WHERE id=? AND user_id IS NULL',account.id,byEmail.id);
-        store.audit('system','STAGING_ACCEPTANCE_STUDENT_IDENTITY_LINK','student',null,{
+        store.audit(options.auditActor||'system','STAGING_ACCEPTANCE_STUDENT_IDENTITY_LINK','student',null,{
           studentId:byEmail.id,userId:account.id,email:account.email,testData:true,
         });
       });
@@ -106,7 +109,7 @@ export function ensureStagingAcceptanceStudent(
       studentId,account.id,applicationId,studentNumber,account.name,account.email,
       candidate.program_id,candidate.term_id,stamp);
 
-    store.audit('system','STAGING_ACCEPTANCE_STUDENT_AUTO_LINK','student',null,{
+    store.audit(options.auditActor||'system','STAGING_ACCEPTANCE_STUDENT_AUTO_LINK','student',null,{
       studentId,userId:account.id,studentNumber,email:account.email,
       programId:candidate.program_id,termId:candidate.term_id,
       sectionCount:Number(candidate.section_count||0),testData:true,
