@@ -18,7 +18,7 @@ test('course sections enforce Classroom, Online and Hybrid delivery requirements
 
  assert.throws(
   ()=>store.execute(admin,'section',{courseId:course.id,termId:term.id,lecturerId:lecturer.id,code:'A',capacity:20,deliveryMode:'classroom',location:'Main Campus',schedule:'Mon 09:00'}),
-  (error:any)=>error instanceof WorkflowError&&/require both a campus/i.test(error.message)
+  (error:any)=>error instanceof WorkflowError&&/Classroom \/ room is required/i.test(error.message)
  );
 
  const classroom=store.execute(admin,'section',{
@@ -33,7 +33,7 @@ test('course sections enforce Classroom, Online and Hybrid delivery requirements
 
  assert.throws(
   ()=>store.execute(admin,'section',{courseId:course.id,termId:term.id,lecturerId:lecturer.id,code:'B',capacity:20,deliveryMode:'online',schedule:'Tue 10:00'}),
-  (error:any)=>error instanceof WorkflowError&&/require an online classroom/i.test(error.message)
+  (error:any)=>error instanceof WorkflowError&&/Online classroom \/ LMS reference is required/i.test(error.message)
  );
 
  const online=store.execute(admin,'section',{
