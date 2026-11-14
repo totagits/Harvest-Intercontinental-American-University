@@ -1148,7 +1148,15 @@ export class Operations {
           'SELECT value FROM settings WHERE key=?',
           sequenceKey,
         );
-        const sequence=Math.max(0,Number(sequenceRow?.value||0))+1;
+        const existingSequence=this.one(
+          "SELECT COALESCE(MAX(CAST(substr(reference,-6) AS INTEGER)),0) AS n FROM payments WHERE reference GLOB ?",
+          'HIAU-PAY-'+year+'-[0-9][0-9][0-9][0-9][0-9][0-9]',
+        );
+        const sequence=Math.max(
+          0,
+          Number(sequenceRow?.value||0),
+          Number(existingSequence?.n||0),
+        )+1;
         this.run(
           'INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
           sequenceKey,
