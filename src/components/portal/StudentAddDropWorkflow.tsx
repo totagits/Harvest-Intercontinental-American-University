@@ -25,15 +25,15 @@ type StudentState={
 };
 const statusLabel=(s:string)=>s.replaceAll('_',' ').replace(/w/g,c=>c.toUpperCase());
 
-export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile}>=({currentUser})=>{
- const isStudent=currentUser.role==='student';
- const isRegistrar=['super_admin','registrar'].includes(currentUser.role);
- const isFinance=['super_admin','bursar','registrar'].includes(currentUser.role);
+export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'student'|'registrar'|'finance'}>=({currentUser,mode})=>{
+ const isStudent=mode==='student'&&currentUser.role==='student';
+ const isRegistrar=mode==='registrar'&&['super_admin','registrar'].includes(currentUser.role);
+ const isFinance=mode==='finance'&&['super_admin','bursar','registrar'].includes(currentUser.role);
  const [data,setData]=useState<any>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
  const [termId,setTermId]=useState(''),[adds,setAdds]=useState<string[]>([]),[drops,setDrops]=useState<string[]>([]),[reason,setReason]=useState('');
  const [notes,setNotes]=useState<Record<string,string>>({}),[dueDates,setDueDates]=useState<Record<string,string>>({});
 
- const endpoint=isFinance&&!isStudent&&!isRegistrar?'/api/student/add-drop/finance':'/api/student/add-drop';
+ const endpoint=isFinance?'/api/student/add-drop/finance':'/api/student/add-drop';
  const load=useCallback(async()=>{
   setError('');
   const r=await fetch(endpoint,{credentials:'same-origin',cache:'no-store'});
