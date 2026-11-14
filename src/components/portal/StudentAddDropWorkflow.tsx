@@ -181,6 +181,7 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
 
    <div className="mt-5 rounded-xl border border-[#D8C8DC] bg-[#FAF7FB] p-4">
     <h3 className="font-bold text-[#4A1249]">Request summary</h3>
+    {(adds.length>0||drops.length>0)&&<p className="mt-2 rounded-lg border border-[#E5D3A6] bg-[#FFF9EA] p-3 text-sm font-semibold text-[#6F4F16]">Your selections are still only in the Add/Drop cart. They will not appear for the Registrar until you enter a reason and click “Submit Add/Drop request to Registrar.”</p>}
     <p className="mt-2 text-sm">Current credits: <strong>{currentCredits}</strong> · Add: <strong>{addedCredits}</strong> · Drop: <strong>{droppedCredits}</strong> · Resulting credits: <strong>{resultingCredits}</strong></p>
     {resultingCredits>0&&resultingCredits<12&&<p className="mt-2 rounded border border-[#E5D3A6] bg-[#FFF9EA] p-3 text-xs text-[#6F4F16]">This change would leave fewer than 12 credits. The Registrar must review the underload impact before committing it.</p>}
     <label className="mt-3 block text-sm font-semibold">Reason for Add/Drop<textarea value={reason} onChange={e=>setReason(e.target.value)}
@@ -189,7 +190,8 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
    </div>
 
    <div className="mt-6"><h3 className="font-bold">My Add/Drop requests</h3>{student.requests?.length?<div className="mt-2 space-y-2">{student.requests.map((r:any)=><div key={r.id} className="rounded-lg border border-[#E6DCE7] p-3 text-sm">
-    <strong>{statusLabel(r.status)}</strong> · {r.addSectionIds.length} add · {r.dropRegistrationIds.length} drop<p className="mt-1 text-slate-600">{r.reason}</p>{r.reviewer_note&&<p className="mt-1 text-slate-600">Registrar: {r.reviewer_note}</p>}</div>)}</div>:<p className="mt-2 text-sm text-slate-600">No Add/Drop requests yet.</p>}</div>
+    <strong>{statusLabel(r.status)}</strong> · {r.addSectionIds.length} add · {r.dropRegistrationIds.length} drop<p className="mt-1 text-slate-600">{r.reason}</p>{r.reviewer_note&&<p className="mt-1 text-slate-600">Registrar: {r.reviewer_note}</p>}</div>)}</div>:
+    <p className="mt-2 rounded border border-dashed border-[#D8C8DC] p-3 text-sm text-slate-600">{(adds.length||drops.length)?'No request has been submitted yet. Your current selections remain in the cart above.':'No Add/Drop requests yet.'}</p>}</div>
   </>}
  </section>;
 
