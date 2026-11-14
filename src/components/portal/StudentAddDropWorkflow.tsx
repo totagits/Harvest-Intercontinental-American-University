@@ -202,6 +202,15 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
    <div className="mt-4 space-y-4">{requests.map((r:any)=><article key={r.id} className="rounded-xl border border-[#E6DCE7] p-4">
     <h3 className="font-bold">{r.student_number} — {r.full_name}</h3><p className="text-sm text-slate-600">{r.term_title} · Status {statusLabel(r.status)}</p>
     <p className="mt-2 text-sm">{r.reason}</p>
+    {r.reviewSummary?.valid&&<div className="mt-3 grid gap-2 rounded-lg border border-[#E6DCE7] bg-[#FAF8FB] p-3 text-sm sm:grid-cols-2 lg:grid-cols-5">
+     <p>Current load<br/><strong>{r.reviewSummary.currentCredits} cr.</strong></p>
+     <p>Add<br/><strong>{r.reviewSummary.addCredits} cr.</strong></p>
+     <p>Drop<br/><strong>{r.reviewSummary.dropCredits} cr.</strong></p>
+     <p>Resulting load<br/><strong>{r.reviewSummary.resultingCredits} cr.</strong></p>
+     <p>Added tuition estimate<br/><strong>{money(r.reviewSummary.addedUnbilledCents)}</strong></p>
+     {r.reviewSummary.underloadWarning&&<p className="sm:col-span-2 lg:col-span-5 rounded border border-[#E5D3A6] bg-[#FFF9EA] p-2 text-xs text-[#6F4F16]">Resulting load is below 12 credits and requires Registrar judgment.</p>}
+    </div>}
+    {r.reviewSummary&&!r.reviewSummary.valid&&<p className="mt-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">Current validation issue: {r.reviewSummary.error}</p>}
     <div className="mt-3 grid gap-3 md:grid-cols-2"><div><strong className="text-sm">Add</strong>{r.adds?.length?r.adds.map((x:any)=><p key={x.id} className="text-sm">{x.code} — {x.title} ({x.credits} cr.)</p>):<p className="text-sm text-slate-500">None</p>}</div>
      <div><strong className="text-sm">Drop</strong>{r.drops?.length?r.drops.map((x:any)=><p key={x.id} className="text-sm">{x.code} — {x.title} ({x.credits} cr.)</p>):<p className="text-sm text-slate-500">None</p>}</div></div>
     {r.status==='submitted'&&<><textarea rows={2} value={notes[r.id]||''} onChange={e=>setNotes(v=>({...v,[r.id]:e.target.value}))} className="mt-3 w-full rounded-lg border border-[#D8C8DC] p-2.5" placeholder="Registrar decision note"/>

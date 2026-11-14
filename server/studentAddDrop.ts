@@ -180,11 +180,23 @@ export function installStudentAddDrop(app:Express,store:Operations){
   if(!registrar(res))return res.sendStatus(403);
   const requests=store.all(`SELECT a.*,s.student_number,s.full_name,t.title AS term_title
     FROM student_add_drop_requests a JOIN students s ON s.id=a.student_id JOIN terms t ON t.id=a.term_id
-    WHERE a.status IN('submitted','approved') ORDER BY a.created_at`).map((r:any)=>({
-     ...r,addSectionIds:parseIds(r.add_section_ids),dropRegistrationIds:parseIds(r.drop_registration_ids),
-     adds:parseIds(r.add_section_ids).map((id:string)=>store.one(`SELECT s.id,c.code,c.title,c.credits FROM sections s JOIN courses c ON c.id=s.course_id WHERE s.id=?`,id)).filter(Boolean),
-     drops:parseIds(r.drop_registration_ids).map((id:string)=>store.one(`SELECT r.id,c.code,c.title,c.credits FROM registrations r JOIN sections s ON s.id=r.section_id JOIN courses c ON c.id=s.course_id WHERE r.id=?`,id)).filter(Boolean),
-    }));
+    WHERE a.status IN('submitted','approved') ORDER BY a.created_at`).map((r:any)=>{
+     const addSectionIds=parseIds(r.add_section_ids),dropRegistrationIds=parseIds(r.drop_registration_ids);
+     const adds=addSectionIds.map((id:string)=>store.one(`SELECT s.id,c.code,c.title,c.credits FROM sections s JOIN courses c ON c.id=s.course_id WHERE s.id=?`,id)).filter(Boolean);
+     const drops=dropRegistrationIds.map((id:string)=>store.one(`SELECT r.id,c.code,c.title,c.credits FROM registrations r JOIN sections s ON s.id=r.section_id JOIN courses c ON c.id=s.course_id WHERE r.id=?`,id)).filter(Boolean);
+     const student=store.one('SELECT * FROM students WHERE id=?',r.student_id);
+     const check=student?validate(student,r.term_id,addSectionIds,dropRegistrationIds):{error:'Student record unavailable.'};
+     const currentCredits=Array.isArray((check as any).current)
+      ? (check as any).current.reduce((sum:number,row:any)=>sum+Number(row.credits||0),0) : null;
+     const addCredits=adds.reduce((sum:number,row:any)=>sum+Number(row.credits||0),0);
+     const dropCredits=drops.reduce((sum:number,row:any)=>sum+Number(row.credits||0),0);
+     return {
+      ...r,addSectionIds,dropRegistrationIds,adds,drops,
+      reviewSummary:'error'in check?{valid:false,error:check.error}:{valid:true,currentCredits,addCredits,dropCredits,
+       resultingCredits:check.resultingCredits,underloadWarning:check.underloadWarning,
+       addedUnbilledCents:check.addedUnbilled,estimatedDropCreditCents:check.estimatedDropCredit}
+     };
+    });
   return res.json({requests});
  });
 
