@@ -376,8 +376,8 @@ export class Operations {
       UPDATE sections
       SET delivery_mode=
         CASE
-          WHEN lower(location) LIKE '%hybrid%' THEN 'hybrid'
-          WHEN lower(location) LIKE '%online%' OR lower(location) LIKE '%virtual%' THEN 'online'
+          WHEN lower(location) LIKE '% / hybrid' THEN 'hybrid'
+          WHEN lower(location) LIKE '% / online' OR lower(location) LIKE '% / virtual' THEN 'online'
           ELSE delivery_mode
         END
       WHERE delivery_mode='classroom';
