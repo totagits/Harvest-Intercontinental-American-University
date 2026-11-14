@@ -1618,6 +1618,7 @@ export class Operations {
       data?.schemaVersion !== 1 ||
       !data.tables ||
       !operationalTables.filter(name => !['curriculum_programs','curriculum_courses','curriculum_publications','student_assistance_requests','student_course_plans','student_course_plan_commits',
+        'term_registration_deadlines','student_refunds',
         'institutional_partners','institutional_partner_agreements','institutional_partner_members',
         'institutional_partner_resources','institutional_partner_distributions',
         'institutional_partner_distribution_grants','institutional_partner_events',
