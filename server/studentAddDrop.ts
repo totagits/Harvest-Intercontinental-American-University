@@ -56,7 +56,7 @@ export function installStudentAddDrop(app:Express,store:Operations){
  const finance=(res:Response)=>['super_admin','bursar','registrar'].includes(actorOf(res)?.role||'');
  const withDeadline=(term:any)=>term?({
   ...term,
-  registration_close_date:store.one('SELECT value FROM settings WHERE key=?','term_registration_close_'+term.id)?.value||term.end_date,
+  registration_close_date:store.one('SELECT close_date FROM term_registration_deadlines WHERE term_id=?',term.id)?.close_date||term.end_date,
  }):term;
 
  const ensureStagingSection=(req:Request,res:Response)=>{
