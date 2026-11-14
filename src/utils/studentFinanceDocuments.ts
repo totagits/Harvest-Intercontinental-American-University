@@ -101,7 +101,7 @@ export async function downloadUniversityInvoice(input:{
   ['Original billed amount',invoice.amount_cents],
   ['Posted credits / assistance',-creditTotal],
   ['Reconciled payments',-reconciledTotal],
-  ['Current invoice balance',invoice.balance_cents],
+  ['Outstanding invoice balance',invoice.balance_cents],
  ] as const;
  for(const [label,cents] of totals){
   doc.setFont('helvetica',label==='Current invoice balance'?'bold':'normal');
