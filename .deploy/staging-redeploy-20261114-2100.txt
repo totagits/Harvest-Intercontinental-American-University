@@ -1,0 +1,4 @@
+Redeploy trigger for HIAU staging.
+Purpose: force Coolify/webhook rebuild after section readiness and staging fixture changes.
+Source staging commit before trigger: 2b37bebd044309b47fcf08492a525e0e32dc5d53
+Date: 2026-11-14
