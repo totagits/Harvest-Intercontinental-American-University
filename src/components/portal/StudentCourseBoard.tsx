@@ -5,7 +5,7 @@ import type {UserProfile} from '../../types';
 type Term={id:string;title:string;max_credits:number;start_date:string;end_date:string};
 type Section={
  id:string;term_id:string;code:string;capacity:number;delivery_mode:'classroom'|'online'|'hybrid';location:string;classroom:string;online_classroom:string;schedule:string;
- course_id:string;course_code:string;course_title:string;credits:number;lecturer_name?:string|null;enrolled_count:number;program_eligible:number;
+ course_id:string;course_code:string;course_title:string;credits:number;lecturer_name?:string|null;enrolled_count:number;program_eligible:number;has_online_classroom:number;
 };
 type Registration={registration_id:string;section_id:string;term_id:string;course_id:string;course_code:string;course_title:string;credits:number};
 type Cart={term_id:string;addSectionIds:string[];dropRegistrationIds:string[];reason:string;updated_at:string};
@@ -122,7 +122,9 @@ export const StudentCourseBoard:React.FC<{currentUser:UserProfile;onOpenStudentW
       <p className="flex items-center gap-2"><Clock className="h-4 w-4 text-[#8B5C1C]"/>{section.schedule||'Schedule to be announced'}</p>
       {mode!=='online'&&<p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-[#8B5C1C]"/>{section.location||'Campus / location TBA'}</p>}
       {mode!=='online'&&<p className="flex items-center gap-2"><Building2 className="h-4 w-4 text-[#8B5C1C]"/>{section.classroom?('Classroom '+section.classroom):'Classroom TBA'}</p>}
-      {mode!=='classroom'&&<p className="flex items-center gap-2"><Monitor className="h-4 w-4 text-[#8B5C1C]"/>{section.online_classroom||'Online classroom TBA'}</p>}
+      {mode!=='classroom'&&<p className="flex items-center gap-2"><Monitor className="h-4 w-4 text-[#8B5C1C]"/>
+       {already?(section.online_classroom||'Online classroom TBA'):(Number(section.has_online_classroom)===1?'Online access available after enrollment':'Online classroom TBA')}
+      </p>}
       <p className="flex items-center gap-2"><User className="h-4 w-4 text-[#8B5C1C]"/>{section.lecturer_name||'Faculty assignment pending'}</p>
       <p className="flex items-center gap-2"><Users className="h-4 w-4 text-[#8B5C1C]"/>{seats} of {section.capacity} seats available</p>
      </div>
