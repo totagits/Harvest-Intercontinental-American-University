@@ -188,8 +188,19 @@ export function installStudentAddDrop(app:Express,store:Operations){
   const term=store.one("SELECT id FROM terms WHERE id=? AND status='open'",termId);
   if(!term)return res.status(409).json({error:'The selected academic term is not open.'});
   if(addIds.length){
-    const n=store.one(`SELECT COUNT(*) AS n FROM sections WHERE term_id=? AND id IN (${addIds.map(()=>'?').join(',')})`,termId,...addIds).n;
-    if(n!==addIds.length)return res.status(409).json({error:'Every course added to the cart must be an open-term section.'});
+    const additions=store.all(`SELECT s.id,s.course_id,s.capacity,c.code AS course_code
+      FROM sections s JOIN courses c ON c.id=s.course_id
+      WHERE s.term_id=? AND s.id IN (${addIds.map(()=>'?').join(',')})`,termId,...addIds);
+    if(additions.length!==addIds.length)return res.status(409).json({error:'Every course added to the cart must be an open-term section.'});
+    for(const section of additions){
+      if(!store.one('SELECT 1 AS ok FROM program_requirements WHERE program_id=? AND course_id=?',student.program_id,section.course_id))
+        return res.status(409).json({error:`${section.course_code} is not currently approved for your academic program.`});
+      if(store.one("SELECT COUNT(*) AS n FROM registrations WHERE section_id=? AND status='enrolled'",section.id).n>=section.capacity)
+        return res.status(409).json({error:`${section.course_code} is full and cannot be added to your Add/Drop cart.`});
+      if(store.one(`SELECT r.id FROM registrations r JOIN sections s ON s.id=r.section_id
+        WHERE r.student_id=? AND r.status='enrolled' AND s.term_id=? AND s.course_id=?`,student.id,termId,section.course_id))
+        return res.status(409).json({error:`${section.course_code} is already in your current courses.`});
+    }
   }
   if(dropIds.length){
     const n=store.one(`SELECT COUNT(*) AS n FROM registrations r JOIN sections s ON s.id=r.section_id

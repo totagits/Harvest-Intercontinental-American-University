@@ -691,6 +691,26 @@ export class Operations {
           'INSERT INTO sections VALUES(?,?,?,?,?,?,?,?,?)',
           ...Object.values(result),
         );
+      } else if (action === 'sectionCapacity') {
+        this.permitted(actor, ['registrar']);
+        before = this.one('SELECT * FROM sections WHERE id=?', data.id);
+        if (!before)
+          throw new WorkflowError('Course section not found.', 404);
+        const enrolled = this.one(
+          "SELECT COUNT(*) AS n FROM registrations WHERE section_id=? AND status='enrolled'",
+          before.id,
+        ).n;
+        const capacity = integer(data.capacity, 'Capacity', 1, 10000);
+        if (capacity < enrolled)
+          throw new WorkflowError(
+            `Capacity cannot be reduced below the current enrollment of ${enrolled} student${enrolled === 1 ? '' : 's'}.`,
+            409,
+          );
+        this.run('UPDATE sections SET capacity=? WHERE id=?', capacity, before.id);
+        result = {
+          ...this.one('SELECT * FROM sections WHERE id=?', before.id),
+          enrolled,
+        };
       } else if (action === 'application') {
         this.permitted(actor, ['admissions_officer', 'registrar']);
         const identifier = id();

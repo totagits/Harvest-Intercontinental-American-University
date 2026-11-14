@@ -31,6 +31,7 @@ import { TaskManagementDashboard } from './components/portal/TaskManagementDashb
 import { IntegratedAnalyticsHub } from './components/portal/IntegratedAnalyticsHub';
 import { FacultyAdminDashboard } from './components/portal/FacultyAdminDashboard';
 import { AcademicPlanningRegistration } from './components/portal/AcademicPlanningRegistration';
+import {CourseSectionManagement} from './components/portal/CourseSectionManagement';
 import { CurriculumStudio } from './components/portal/CurriculumStudio';
 import {GlobalAcademicCollaborationHub} from './components/portal/GlobalAcademicCollaborationHub';
 import {CollaborationEventsWorkspace} from './components/portal/CollaborationEventsWorkspace';
@@ -523,7 +524,10 @@ export default function App() {
             {activePortalTab === 'academics' && (
               currentUser.role === 'student'
                 ? <StudentCourseBoard currentUser={currentUser} onOpenStudentWorkspace={() => setActivePortalTab('student_portal')} />
-                : <AcademicPlanningRegistration currentUser={currentUser} onOpenPrintModal={handleOpenPrintModal} />
+                : <>
+                    <CourseSectionManagement currentUser={currentUser} />
+                    <AcademicPlanningRegistration currentUser={currentUser} onOpenPrintModal={handleOpenPrintModal} />
+                  </>
             )}
 
             {activePortalTab === 'curriculum' && (
