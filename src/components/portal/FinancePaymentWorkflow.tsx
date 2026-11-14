@@ -7,7 +7,7 @@ type Invoice={
  amount_cents:number;balance_cents:number;due_date:string;
 };
 type Payment={
- id:string;invoice_id:string;invoice_number:string;full_name:string;reference:string;amount_cents:number;
+ id:string;invoice_id:string;invoice_number:string;full_name:string;reference:string;external_reference?:string;amount_cents:number;
  method:'bank'|'mobile_money'|'cash';received_date:string;status:'recorded'|'reconciled'|'cancelled';
  recorded_by:string;reviewed_by?:string|null;review_note?:string;created_at:string;reviewed_at?:string|null;
 };
@@ -47,7 +47,7 @@ export const FinancePaymentWorkflow:React.FC<{currentUser:UserProfile}>=({curren
  const [invoiceId,setInvoiceId]=useState('');
  const [amount,setAmount]=useState('');
  const [method,setMethod]=useState<'bank'|'mobile_money'|'cash'>('bank');
- const [reference,setReference]=useState('');
+ const [externalReference,setExternalReference]=useState('');
  const [receivedDate,setReceivedDate]=useState('');
  const [reviewNotes,setReviewNotes]=useState<Record<string,string>>({});
 
@@ -69,11 +69,11 @@ export const FinancePaymentWorkflow:React.FC<{currentUser:UserProfile}>=({curren
   if(!selected||busy)return;
   setBusy(true);setError('');setMessage('');
   try{
-   await action('payment',{
-    invoiceId:selected.id,amount,method,reference:reference.trim(),receivedDate,
+   const result=await action('payment',{
+    invoiceId:selected.id,amount,method,externalReference:externalReference.trim(),receivedDate,
    });
-   setMessage('Payment recorded. It is not yet settled and requires independent reconciliation.');
-   setAmount('');setReference('');setReceivedDate('');setInvoiceId('');
+   setMessage('Payment '+result.reference+' recorded. It is not yet settled and requires independent reconciliation.');
+   setAmount('');setExternalReference('');setReceivedDate('');setInvoiceId('');
    await load();
   }catch(e){setError(e instanceof Error?e.message:'Payment could not be recorded.');}
   finally{setBusy(false);}
@@ -135,17 +135,18 @@ export const FinancePaymentWorkflow:React.FC<{currentUser:UserProfile}>=({curren
       <option value="bank">Bank</option><option value="mobile_money">Mobile money</option><option value="cash">Cash</option>
      </select>
     </label>
-    <label className="text-sm font-semibold">Receipt / transaction reference
-     <input value={reference} onChange={e=>setReference(e.target.value)} maxLength={120}
-      placeholder="Bank slip, mobile-money transaction or cashier reference"
+    <label className="text-sm font-semibold">External transaction reference {method==='cash'&&<span className="font-normal text-slate-500">(optional for cash)</span>}
+     <input value={externalReference} onChange={e=>setExternalReference(e.target.value)} maxLength={120}
+      placeholder={method==='bank'?'Bank slip / deposit reference':method==='mobile_money'?'Mobile Money provider transaction ID':'Optional cashier/source reference'}
       className="mt-1 w-full rounded-lg border border-[#D8C8DC] bg-white p-2.5"/>
+     <span className="mt-1 block text-xs font-normal text-slate-500">The ERP will automatically generate the official HIAU payment reference.</span>
     </label>
     <label className="text-sm font-semibold">Received date
      <input type="date" value={receivedDate} onChange={e=>setReceivedDate(e.target.value)}
       className="mt-1 w-full rounded-lg border border-[#D8C8DC] bg-white p-2.5"/>
     </label>
     <div className="flex items-end">
-     <button type="button" disabled={busy||!amount.trim()||!reference.trim()||!receivedDate} onClick={()=>void record()}
+     <button type="button" disabled={busy||!amount.trim()||!receivedDate||(method!=='cash'&&!externalReference.trim())} onClick={()=>void record()}
       className="hiau-finance-primary rounded-lg px-4 py-2.5 text-sm font-bold">
       {busy?'Recording…':'Record payment'}
      </button>
@@ -162,7 +163,9 @@ export const FinancePaymentWorkflow:React.FC<{currentUser:UserProfile}>=({curren
     return <article key={payment.id} className="rounded-lg border border-[#E6DCE7] p-4">
      <div className="flex flex-wrap justify-between gap-3">
       <div><p className="font-bold">{payment.invoice_number} · {payment.full_name}</p>
-       <p className="text-sm text-slate-700">{money(payment.amount_cents)} · {payment.method.replaceAll('_',' ')} · {payment.reference}</p>
+       <p className="text-sm text-slate-700">{money(payment.amount_cents)} · {payment.method.replaceAll('_',' ')}</p>
+       <p className="text-sm font-semibold text-[#4A1249]">HIAU payment reference: {payment.reference}</p>
+       {payment.external_reference&&<p className="text-xs text-slate-600">External transaction reference: {payment.external_reference}</p>}
        <p className="text-xs text-slate-500">Received {safeDate(payment.received_date)} · Status recorded</p></div>
      </div>
      {sameRecorder?<p className="mt-3 rounded border border-[#E5D3A6] bg-[#FFF9EA] p-3 text-xs text-[#6F4F16]">Independent reconciliation required: the account that recorded this payment cannot reconcile it.</p>:
