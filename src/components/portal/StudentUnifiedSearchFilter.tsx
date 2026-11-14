@@ -6,8 +6,9 @@ export type VerifiedSearchSource = {
   registrations: Row[];
   grades: Row[];
   invoices: Row[];
+  payments: Row[];
 };
-type Kind='all'|'course'|'grade'|'invoice';
+type Kind='all'|'course'|'grade'|'invoice'|'receipt';
 type Item={id:string;kind:Exclude<Kind,'all'>;title:string;detail:string;subtext:string};
 const str=(v:unknown)=> typeof v==='string'?v:'';
 const fmtMoney=(c:unknown)=>typeof c==='number' && Number.isFinite(c)
@@ -50,6 +51,15 @@ export function verifiedStudentItems(source:VerifiedSearchSource):Item[]{
       subtext:[str(invoice.term_title),str(invoice.due_date)].filter(Boolean).join(' · '),
     });
   }
+  for(const payment of source.payments.filter(p=>p.status==='reconciled')){
+    const reference=str(payment.reference);
+    items.push({
+      id:'receipt:'+str(payment.id),kind:'receipt',
+      title:reference?'Receipt '+reference:'Official payment receipt',
+      detail:'Received '+fmtMoney(payment.amount_cents)+' · Reconciled',
+      subtext:[str(payment.invoice_number),str(payment.received_date),str(payment.method).replaceAll('_',' ')].filter(Boolean).join(' · '),
+    });
+  }
   return items;
 }
 export function filterVerifiedStudentItems(items:Item[],query:string,kind:Kind):Item[]{
@@ -64,7 +74,7 @@ export const StudentUnifiedSearchFilter:React.FC<{source:VerifiedSearchSource}>=
   const matches=useMemo(()=>filterVerifiedStudentItems(items,query,kind),[items,query,kind]);
   const categories:{value:Kind;label:string}[]=[
     {value:'all',label:'All records'},{value:'course',label:'Courses'},
-    {value:'grade',label:'Published grades'},{value:'invoice',label:'Invoices'},
+    {value:'grade',label:'Published grades'},{value:'invoice',label:'Invoices'},{value:'receipt',label:'Receipts'},
   ];
   return <section aria-label="Search your verified academic records" className="rounded-2xl border border-[#e6dce7] bg-white p-5 shadow-sm">
     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -74,7 +84,7 @@ export const StudentUnifiedSearchFilter:React.FC<{source:VerifiedSearchSource}>=
       </div>
       <span aria-live="polite" className="text-xs text-slate-600">{matches.length} {matches.length===1?'match':'matches'}</span>
     </div>
-    <p className="mb-4 text-sm text-slate-600">Find your own registered courses, published results and invoices. University-wide catalogs, library files and exam schedules will appear only after their verified integrations are available.</p>
+    <p className="mb-4 text-sm text-slate-600">Find your own registered courses, published results, invoices and reconciled payment receipts. University-wide catalogs, library files and exam schedules will appear only after their verified integrations are available.</p>
     <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_210px]">
       <label className="relative block">
         <span className="sr-only">Search your academic records</span>
