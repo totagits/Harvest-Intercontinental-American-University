@@ -132,7 +132,9 @@ test('clean relational workflow enforces billing, review, publication and gradua
       lecturerId: faculty.id,
       code: 'A',
       capacity: 1,
-      location: 'Room',
+      deliveryMode: 'classroom',
+      location: 'Main Campus',
+      classroom: 'Room',
       schedule: 'Monday',
     });
     const application = run('application', {
