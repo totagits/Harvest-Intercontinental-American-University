@@ -53,7 +53,7 @@ export function installStudentAddDrop(app:Express,store:Operations){
  }):term;
 
  const ensureStagingSection=(req:Request,res:Response)=>{
-  const host=String(req.hostname||req.get('host')||'').toLowerCase().split(':')[0];
+  const host=String(req.get('x-forwarded-host')||req.hostname||req.get('host')||'').toLowerCase().split(',')[0].trim().split(':')[0];
   if(host!==STAGING_HOST)return;
   const program=store.one("SELECT * FROM programs WHERE code='STG-ACCEPT'");
   const term=store.one("SELECT * FROM terms WHERE code='STG-2026-A'");
