@@ -98,7 +98,7 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
   await putCart({termId,addSectionIds:nextAdds,dropRegistrationIds:nextDrops,reason:nextReason});
  };
  const toggleDrop=async(registrationId:string,checked:boolean)=>{
-  if(busy||registrationClosed)return;
+  if(busy||(registrationClosed&&checked))return;
   const next=checked?Array.from(new Set([...drops,registrationId])):drops.filter(id=>id!==registrationId);
   setBusy(true);setError('');setMessage('');
   try{await saveStudentCart(adds,next,reason);setDrops(next);
