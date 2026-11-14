@@ -10,6 +10,12 @@ import {installStudentAddDrop} from './studentAddDrop';
 import {installStudentPlanning} from './studentPlanning';
 
 test('paid drop without replacement creates controlled refund payable and deadline blocks late Add/Drop',async()=>{
+ const isoDay=(date:Date)=>date.toISOString().slice(0,10);
+ const nowDate=new Date();
+ const termStartDate=new Date(nowDate.getTime()-7*86400000);
+ const termEndDate=new Date(nowDate.getTime()+120*86400000);
+ const deadlineDate=new Date(nowDate.getTime()+30*86400000);
+ const termStart=isoDay(termStartDate),termEnd=isoDay(termEndDate),registrationClose=isoDay(deadlineDate),receivedDate=isoDay(nowDate);
  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'hiau-refund-adddrop-'));
  const store=new Operations(directory);
  const registrar:any={id:crypto.randomUUID(),email:'registrar@example.test',name:'Registrar',role:'super_admin',title:''};
@@ -21,8 +27,8 @@ test('paid drop without replacement creates controlled refund payable and deadli
 
  const program=store.execute(registrar,'program',{code:'REF',title:'Refund Test',requiredCredits:120});
  const term=store.execute(registrar,'term',{
-  code:'REF-2026',title:'Refund Term',startDate:'2026-11-01',endDate:'2026-12-31',
-  registrationCloseDate:'2026-11-30',status:'open',maxCredits:18
+  code:'REF-2026',title:'Refund Term',startDate:termStart,endDate:termEnd,
+  registrationCloseDate:registrationClose,status:'open',maxCredits:18
  });
  const course1=store.execute(registrar,'course',{code:'REF-101',title:'Paid Course',credits:3,feePerCredit:'150.00',programId:program.id,prerequisites:[]});
  const course2=store.execute(registrar,'course',{code:'REF-102',title:'Remaining Course',credits:3,feePerCredit:'150.00',programId:program.id,prerequisites:[]});
@@ -39,10 +45,10 @@ test('paid drop without replacement creates controlled refund payable and deadli
  store.run("INSERT INTO registrations(id,student_id,section_id,status,created_at,updated_at) VALUES(?,?,?,'enrolled',?,?)",reg2,studentId,section2.id,stamp,stamp);
  const invoiceId=crypto.randomUUID();
  store.run('INSERT INTO invoices(id,student_id,term_id,number,amount_cents,due_date,posted_by,created_at) VALUES(?,?,?,?,?,?,?,?)',
-  invoiceId,studentId,term.id,'INV-REF-001',45000,'2026-11-20',bursar1.id,stamp);
+  invoiceId,studentId,term.id,'INV-REF-001',45000,registrationClose,bursar1.id,stamp);
  store.run('INSERT INTO invoice_lines(id,invoice_id,registration_id,description,amount_cents) VALUES(?,?,?,?,?)',
   crypto.randomUUID(),invoiceId,reg1,'REF-101 Paid Course',45000);
- const payment:any=store.execute(bursar1,'payment',{invoiceId,amount:'450.00',method:'cash',externalReference:'',receivedDate:'2026-11-10'});
+ const payment:any=store.execute(bursar1,'payment',{invoiceId,amount:'450.00',method:'cash',externalReference:'',receivedDate});
  store.execute(bursar2,'reconcilePayment',{id:payment.id,status:'reconciled',note:'Verified paid tuition for refund acceptance test.'});
  assert.equal(store.invoiceBalance(invoiceId),0);
 
@@ -101,7 +107,7 @@ test('paid drop without replacement creates controlled refund payable and deadli
   assert.equal(result.data.invoices[0].refunds[0].status,'paid');
 
   actor=registrar;
-  store.execute(registrar,'termRegistrationDeadline',{id:term.id,registrationCloseDate:'2026-11-01'});
+  store.execute(registrar,'termRegistrationDeadline',{id:term.id,registrationCloseDate:termStart});
   actor=studentUser;
   result=await call('PUT','/api/student/add-drop/cart',{termId:term.id,addSectionIds:[],dropRegistrationIds:[reg2],reason:'Late drop should be blocked by deadline.'});
   assert.equal(result.status,409);
