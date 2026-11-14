@@ -84,6 +84,7 @@ const operationalTables = [
   'student_assistance_awards',
   'credit_notes',
   'payments',
+  'student_refunds',
   'graduation_reviews',
   'alumni_profiles',
   'transcript_requests',
@@ -112,7 +113,7 @@ export class Operations {
       CREATE TABLE IF NOT EXISTS migrations(version INTEGER PRIMARY KEY,applied_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL COLLATE NOCASE,name TEXT NOT NULL,role TEXT NOT NULL,title TEXT NOT NULL DEFAULT '',department TEXT NOT NULL DEFAULT '');
       CREATE TABLE IF NOT EXISTS programs(id TEXT PRIMARY KEY,code TEXT UNIQUE NOT NULL,title TEXT NOT NULL,required_credits INTEGER NOT NULL CHECK(required_credits>0),created_at TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS terms(id TEXT PRIMARY KEY,code TEXT UNIQUE NOT NULL,title TEXT NOT NULL,start_date TEXT NOT NULL,end_date TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN('draft','open','closed')),max_credits INTEGER NOT NULL CHECK(max_credits>0),created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS terms(id TEXT PRIMARY KEY,code TEXT UNIQUE NOT NULL,title TEXT NOT NULL,start_date TEXT NOT NULL,end_date TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN('draft','open','closed')),max_credits INTEGER NOT NULL CHECK(max_credits>0),created_at TEXT NOT NULL,registration_close_date TEXT NOT NULL DEFAULT '');
       CREATE TABLE IF NOT EXISTS courses(id TEXT PRIMARY KEY,code TEXT UNIQUE NOT NULL,title TEXT NOT NULL,credits INTEGER NOT NULL CHECK(credits>0),fee_cents INTEGER NOT NULL CHECK(fee_cents>=0),created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS course_prerequisites(course_id TEXT NOT NULL REFERENCES courses(id),requires_id TEXT NOT NULL REFERENCES courses(id),PRIMARY KEY(course_id,requires_id),CHECK(course_id<>requires_id));
       CREATE TABLE IF NOT EXISTS program_requirements(program_id TEXT NOT NULL REFERENCES programs(id),course_id TEXT NOT NULL REFERENCES courses(id),PRIMARY KEY(program_id,course_id));
@@ -188,6 +189,25 @@ export class Operations {
       CREATE INDEX IF NOT EXISTS student_assistance_awards_invoice ON student_assistance_awards(invoice_id,created_at);
       CREATE TABLE IF NOT EXISTS credit_notes(id TEXT PRIMARY KEY,invoice_id TEXT NOT NULL REFERENCES invoices(id),registration_id TEXT UNIQUE NOT NULL REFERENCES registrations(id),amount_cents INTEGER NOT NULL CHECK(amount_cents>=0),reason TEXT NOT NULL,posted_by TEXT NOT NULL REFERENCES users(id),created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS payments(id TEXT PRIMARY KEY,invoice_id TEXT NOT NULL REFERENCES invoices(id),reference TEXT UNIQUE NOT NULL,amount_cents INTEGER NOT NULL CHECK(amount_cents>0),method TEXT NOT NULL CHECK(method IN('bank','mobile_money','cash')),received_date TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN('recorded','reconciled','cancelled')),recorded_by TEXT NOT NULL REFERENCES users(id),reviewed_by TEXT REFERENCES users(id),review_note TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,reviewed_at TEXT);
+      CREATE TABLE IF NOT EXISTS student_refunds(
+        id TEXT PRIMARY KEY,
+        student_id TEXT NOT NULL REFERENCES students(id),
+        invoice_id TEXT NOT NULL REFERENCES invoices(id),
+        registration_id TEXT UNIQUE NOT NULL REFERENCES registrations(id),
+        add_drop_request_id TEXT NOT NULL,
+        amount_cents INTEGER NOT NULL CHECK(amount_cents>0),
+        status TEXT NOT NULL CHECK(status IN('pending','approved','paid','cancelled')),
+        reason TEXT NOT NULL,
+        approved_by TEXT REFERENCES users(id),
+        approved_at TEXT,
+        paid_by TEXT REFERENCES users(id),
+        paid_at TEXT,
+        method TEXT CHECK(method IN('bank','mobile_money','cash')),
+        reference TEXT UNIQUE,
+        external_reference TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS student_refunds_status ON student_refunds(status,created_at);
       CREATE TABLE IF NOT EXISTS graduation_reviews(id TEXT PRIMARY KEY,student_id TEXT UNIQUE NOT NULL REFERENCES students(id),status TEXT NOT NULL CHECK(status IN('requested','approved','rejected')),note TEXT NOT NULL DEFAULT '',reviewed_by TEXT REFERENCES users(id),created_at TEXT NOT NULL,reviewed_at TEXT);
       CREATE TABLE IF NOT EXISTS alumni_profiles(user_id TEXT PRIMARY KEY REFERENCES users(id),profession TEXT NOT NULL,employer TEXT NOT NULL,updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS transcript_requests(id TEXT PRIMARY KEY,student_id TEXT NOT NULL REFERENCES students(id),purpose TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN('requested','under_review','issued','declined')),reviewed_by TEXT REFERENCES users(id),note TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL);
@@ -365,6 +385,13 @@ export class Operations {
       CREATE INDEX IF NOT EXISTS partner_event_regs_user
         ON institutional_partner_event_registrations(user_id,status);
       INSERT OR IGNORE INTO migrations VALUES(1,datetime('now'));`);
+    const termColumns = this.sql.prepare('PRAGMA table_info(terms)').all() as any[];
+    if (!termColumns.some((column: any) => column.name === 'registration_close_date')) {
+      this.sql.exec("ALTER TABLE terms ADD COLUMN registration_close_date TEXT NOT NULL DEFAULT ''");
+      this.sql.exec("UPDATE terms SET registration_close_date=end_date WHERE registration_close_date=''");
+    } else {
+      this.sql.exec("UPDATE terms SET registration_close_date=end_date WHERE trim(registration_close_date)=''");
+    }
     let sectionColumns = this.sql.prepare('PRAGMA table_info(sections)').all() as any[];
     if (!sectionColumns.some((column: any) => column.name === 'classroom'))
       this.sql.exec("ALTER TABLE sections ADD COLUMN classroom TEXT NOT NULL DEFAULT ''");
@@ -593,7 +620,9 @@ export class Operations {
       `SELECT COALESCE((SELECT SUM(amount_cents) FROM invoices WHERE student_id=?),0)
         -COALESCE((SELECT SUM(c.amount_cents) FROM credit_notes c JOIN invoices i ON c.invoice_id=i.id WHERE i.student_id=?),0)
         -COALESCE((SELECT SUM(a.amount_cents) FROM student_assistance_awards a WHERE a.student_id=?),0)
-        -COALESCE((SELECT SUM(p.amount_cents) FROM payments p JOIN invoices i ON p.invoice_id=i.id WHERE i.student_id=? AND p.status='reconciled'),0) AS cents`,
+        -COALESCE((SELECT SUM(p.amount_cents) FROM payments p JOIN invoices i ON p.invoice_id=i.id WHERE i.student_id=? AND p.status='reconciled'),0)
+        +COALESCE((SELECT SUM(r.amount_cents) FROM student_refunds r WHERE r.student_id=? AND r.status='paid'),0) AS cents`,
+      studentId,
       studentId,
       studentId,
       studentId,
@@ -605,7 +634,8 @@ export class Operations {
       `SELECT i.amount_cents
         -COALESCE((SELECT SUM(amount_cents) FROM credit_notes WHERE invoice_id=i.id),0)
         -COALESCE((SELECT SUM(amount_cents) FROM student_assistance_awards WHERE invoice_id=i.id),0)
-        -COALESCE((SELECT SUM(amount_cents) FROM payments WHERE invoice_id=i.id AND status='reconciled'),0) AS cents
+        -COALESCE((SELECT SUM(amount_cents) FROM payments WHERE invoice_id=i.id AND status='reconciled'),0)
+        +COALESCE((SELECT SUM(amount_cents) FROM student_refunds WHERE invoice_id=i.id AND status='paid'),0) AS cents
         FROM invoices i WHERE i.id=?`,
       invoiceId,
     )?.cents;
@@ -674,9 +704,14 @@ export class Operations {
       } else if (action === 'term') {
         this.permitted(actor, ['registrar']);
         const start = day(data.startDate, 'Start date'),
-          end = day(data.endDate, 'End date');
+          end = day(data.endDate, 'End date'),
+          registrationClose = data.registrationCloseDate
+            ? day(data.registrationCloseDate, 'Registration / Add-Drop closing date')
+            : end;
         if (end < start)
           throw new WorkflowError('Term end must follow its start.');
+        if (registrationClose < start || registrationClose > end)
+          throw new WorkflowError('Registration / Add-Drop closing date must fall within the academic term.');
         const status = ['draft', 'open', 'closed'].includes(data.status)
           ? data.status
           : 'draft';
@@ -689,11 +724,21 @@ export class Operations {
           status,
           max_credits: integer(data.maxCredits, 'Credit limit', 1, 60),
           created_at: now(),
+          registration_close_date: registrationClose,
         };
         this.run(
-          'INSERT INTO terms VALUES(?,?,?,?,?,?,?,?)',
+          'INSERT INTO terms(id,code,title,start_date,end_date,status,max_credits,created_at,registration_close_date) VALUES(?,?,?,?,?,?,?,?,?)',
           ...Object.values(result),
         );
+      } else if (action === 'termRegistrationDeadline') {
+        this.permitted(actor, ['registrar']);
+        before = this.one('SELECT * FROM terms WHERE id=?', data.id);
+        if (!before) throw new WorkflowError('Academic term not found.', 404);
+        const registrationClose = day(data.registrationCloseDate, 'Registration / Add-Drop closing date');
+        if (registrationClose < before.start_date || registrationClose > before.end_date)
+          throw new WorkflowError('Registration / Add-Drop closing date must fall within the academic term.');
+        this.run('UPDATE terms SET registration_close_date=? WHERE id=?', registrationClose, before.id);
+        result = { ...before, registration_close_date: registrationClose };
       } else if (action === 'termStatus') {
         this.permitted(actor, ['registrar']);
         before = this.one('SELECT * FROM terms WHERE id=?', data.id);
