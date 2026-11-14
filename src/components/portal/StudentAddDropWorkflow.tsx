@@ -1,0 +1,163 @@
+import React,{useCallback,useEffect,useMemo,useState} from 'react';
+import {ArrowDownCircle,ArrowUpCircle,RefreshCcw} from 'lucide-react';
+import type {UserProfile} from '../../types';
+
+const money=(cents:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format((cents||0)/100);
+async function csrf(){
+ const r=await fetch('/api/auth/me',{credentials:'same-origin',cache:'no-store'});
+ const d=await r.json().catch(()=>({}));
+ if(!r.ok||typeof d.csrf!=='string'||!d.csrf)throw new Error('Session verification unavailable. Refresh and sign in again.');
+ return d.csrf as string;
+}
+async function post(url:string,body:object){
+ const token=await csrf();
+ const r=await fetch(url,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','x-csrf-token':token},body:JSON.stringify(body)});
+ const d=await r.json().catch(()=>({}));
+ if(!r.ok)throw new Error(d.error||'Add/Drop action failed.');
+ return d;
+}
+type StudentState={
+ linked:boolean;
+ terms:{id:string;title:string;max_credits:number}[];
+ sections:{id:string;term_id:string;course_code:string;course_title:string;credits:number}[];
+ registrations:{registration_id:string;section_id:string;term_id:string;course_code:string;course_title:string;credits:number}[];
+ requests:any[];
+};
+const statusLabel=(s:string)=>s.replaceAll('_',' ').replace(/w/g,c=>c.toUpperCase());
+
+export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile}>=({currentUser})=>{
+ const isStudent=currentUser.role==='student';
+ const isRegistrar=['super_admin','registrar'].includes(currentUser.role);
+ const isFinance=['super_admin','bursar','registrar'].includes(currentUser.role);
+ const [data,setData]=useState<any>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
+ const [termId,setTermId]=useState(''),[adds,setAdds]=useState<string[]>([]),[drops,setDrops]=useState<string[]>([]),[reason,setReason]=useState('');
+ const [notes,setNotes]=useState<Record<string,string>>({}),[dueDates,setDueDates]=useState<Record<string,string>>({});
+
+ const endpoint=isFinance&&!isStudent&&!isRegistrar?'/api/student/add-drop/finance':'/api/student/add-drop';
+ const load=useCallback(async()=>{
+  setError('');
+  const r=await fetch(endpoint,{credentials:'same-origin',cache:'no-store'});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(d.error||'Could not load Add/Drop workflow.');
+  setData(d);
+  if(isStudent&&!termId&&d.terms?.[0]?.id)setTermId(d.terms[0].id);
+ },[endpoint,isStudent,termId]);
+ useEffect(()=>{void load().catch(e=>setError(e instanceof Error?e.message:'Could not load Add/Drop workflow.'));},[load]);
+
+ const student=data as StudentState|null;
+ const currentRegs=useMemo(()=>isStudent?(student?.registrations||[]).filter(r=>r.term_id===termId):[],[isStudent,student,termId]);
+ const available=useMemo(()=>{
+  if(!isStudent)return [];
+  const registeredCourses=new Set(currentRegs.map(r=>r.course_code));
+  return (student?.sections||[]).filter(s=>s.term_id===termId&&!registeredCourses.has(s.course_code));
+ },[isStudent,student,termId,currentRegs]);
+ const currentCredits=currentRegs.reduce((n,r)=>n+Number(r.credits||0),0);
+ const droppedCredits=currentRegs.filter(r=>drops.includes(r.registration_id)).reduce((n,r)=>n+Number(r.credits||0),0);
+ const addedCredits=available.filter(s=>adds.includes(s.id)).reduce((n,s)=>n+Number(s.credits||0),0);
+ const resultingCredits=currentCredits-droppedCredits+addedCredits;
+
+ const submit=async()=>{
+  if(busy)return;setBusy(true);setError('');setMessage('');
+  try{
+   const r=await post('/api/student/add-drop',{termId,addSectionIds:adds,dropRegistrationIds:drops,reason});
+   setMessage('Add/Drop request submitted for Registrar review. No registration or billing change has occurred yet.');
+   setAdds([]);setDrops([]);setReason('');await load();
+   if(r.underloadWarning)setMessage(m=>'Your request was submitted. Resulting load is below 12 credits and requires Registrar judgment. No registration or billing change has occurred yet.');
+  }catch(e){setError(e instanceof Error?e.message:'Add/Drop request could not be submitted.');}
+  finally{setBusy(false);}
+ };
+ const review=async(id:string,decision:string)=>{
+  if(busy)return;setBusy(true);setError('');setMessage('');
+  try{await post('/api/student/add-drop/'+id+'/review',{decision,note:notes[id]||''});setMessage('Registrar Add/Drop decision saved and audited.');await load();}
+  catch(e){setError(e instanceof Error?e.message:'Review could not be saved.');}finally{setBusy(false);}
+ };
+ const commit=async(id:string)=>{
+  if(busy||!window.confirm('Commit this approved Add/Drop request to the official registration record?'))return;
+  setBusy(true);setError('');setMessage('');
+  try{const r=await post('/api/student/add-drop/'+id+'/commit',{confirmation:'CONFIRM_ADD_DROP'});
+   setMessage('Add/Drop committed: '+r.addedRegistrations+' added, '+r.droppedRegistrations+' dropped. Finance will review any resulting tuition adjustment.');
+   await load();
+  }catch(e){setError(e instanceof Error?e.message:'Add/Drop could not be committed.');}finally{setBusy(false);}
+ };
+ const postInvoice=async(item:any)=>{
+  const due=dueDates[item.id]||'';if(!due){setError('Choose an invoice due date.');return;}
+  setBusy(true);setError('');setMessage('');
+  try{
+   const token=await csrf();
+   const r=await fetch('/api/workspaces/action',{method:'POST',credentials:'same-origin',
+    headers:{'Content-Type':'application/json','x-csrf-token':token},
+    body:JSON.stringify({action:'invoice',data:{studentId:item.student_id,termId:item.term_id,dueDate:due}})});
+   const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Add/Drop invoice could not be posted.');
+   setMessage('Add/Drop tuition invoice posted and audited.');await load();
+  }catch(e){setError(e instanceof Error?e.message:'Add/Drop invoice could not be posted.');}finally{setBusy(false);}
+ };
+
+ if(isStudent)return <section className="rounded-2xl border border-[#DED1E3] bg-white p-5 text-[#35103B] shadow-sm">
+  <div className="flex flex-wrap items-start justify-between gap-3"><div>
+   <h2 className="text-xl font-bold">Course Add / Drop</h2>
+   <p className="mt-1 text-sm text-slate-700">Request changes to an existing registration. Submission alone does not change enrollment or tuition; Registrar commitment is required.</p>
+  </div><button onClick={()=>void load()} className="rounded-lg border border-[#D8C8DC] px-3 py-2 text-sm font-semibold text-[#4A1249]"><RefreshCcw className="mr-2 inline h-4 w-4"/>Refresh</button></div>
+  {error&&<p className="mt-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm">{error}</p>}
+  {message&&<p className="mt-3 rounded border border-[#D8C8DC] bg-[#FAF7FB] p-3 text-sm font-medium text-[#4A1249]">{message}</p>}
+  {!student?.linked?<p className="mt-4 text-sm">A linked active student record is required.</p>:<>
+   <div className="mt-4"><label className="text-sm font-semibold">Academic term<select value={termId} onChange={e=>{setTermId(e.target.value);setAdds([]);setDrops([]);}}
+    className="mt-1 block w-full rounded-lg border border-[#D8C8DC] p-2.5">{student.terms.map(t=><option key={t.id} value={t.id}>{t.title} — limit {t.max_credits} credits</option>)}</select></label></div>
+   <div className="mt-5 grid gap-5 lg:grid-cols-2">
+    <div><h3 className="flex items-center gap-2 font-bold text-[#4A1249]"><ArrowDownCircle className="h-5 w-5"/>Drop currently enrolled course</h3>
+     <div className="mt-2 space-y-2">{currentRegs.length?currentRegs.map(r=><label key={r.registration_id} className="flex gap-3 rounded-lg border border-[#E6DCE7] p-3">
+      <input type="checkbox" checked={drops.includes(r.registration_id)} onChange={e=>setDrops(v=>e.target.checked?[...v,r.registration_id]:v.filter(x=>x!==r.registration_id))}/>
+      <span><strong>{r.course_code}</strong> — {r.course_title}<br/><span className="text-xs text-slate-600">{r.credits} credits</span></span></label>):<p className="text-sm text-slate-600">No active registrations in this term.</p>}</div>
+    </div>
+    <div><h3 className="flex items-center gap-2 font-bold text-[#4A1249]"><ArrowUpCircle className="h-5 w-5"/>Add available course</h3>
+     <div className="mt-2 space-y-2">{available.length?available.map(s=><label key={s.id} className="flex gap-3 rounded-lg border border-[#E6DCE7] p-3">
+      <input type="checkbox" checked={adds.includes(s.id)} onChange={e=>setAdds(v=>e.target.checked?[...v,s.id]:v.filter(x=>x!==s.id))}/>
+      <span><strong>{s.course_code}</strong> — {s.course_title}<br/><span className="text-xs text-slate-600">{s.credits} credits</span></span></label>):<p className="text-sm text-slate-600">No additional sections are currently available.</p>}</div>
+    </div>
+   </div>
+   <p className="mt-4 font-semibold">Current credits: {currentCredits} · Resulting credits: {resultingCredits}</p>
+   {resultingCredits>0&&resultingCredits<12&&<p className="mt-2 rounded border border-[#E5D3A6] bg-[#FFF9EA] p-3 text-xs text-[#6F4F16]">This change would leave fewer than 12 credits. The Registrar must review the underload impact before committing it.</p>}
+   <label className="mt-4 block text-sm font-semibold">Reason for Add/Drop<textarea value={reason} onChange={e=>setReason(e.target.value)} rows={3} maxLength={1000}
+    className="mt-1 block w-full rounded-lg border border-[#D8C8DC] p-2.5" placeholder="Explain the requested registration change (minimum 20 characters)"/></label>
+   <button disabled={busy||(!adds.length&&!drops.length)||reason.trim().length<20} onClick={()=>void submit()} className="hiau-finance-primary mt-3 rounded-lg px-4 py-2.5 text-sm font-bold">Submit Add/Drop request</button>
+   <div className="mt-6"><h3 className="font-bold">My Add/Drop requests</h3>{student.requests?.length?<div className="mt-2 space-y-2">{student.requests.map((r:any)=><div key={r.id} className="rounded-lg border border-[#E6DCE7] p-3 text-sm">
+    <strong>{statusLabel(r.status)}</strong> · {r.addSectionIds.length} add · {r.dropRegistrationIds.length} drop<p className="mt-1 text-slate-600">{r.reason}</p>{r.reviewer_note&&<p className="mt-1 text-slate-600">Registrar: {r.reviewer_note}</p>}</div>)}</div>:<p className="mt-2 text-sm text-slate-600">No Add/Drop requests yet.</p>}</div>
+  </>}
+ </section>;
+
+ if(isRegistrar){
+  const requests=data?.requests||[];
+  return <section className="rounded-2xl border border-[#DED1E3] bg-white p-5 text-[#35103B] shadow-sm">
+   <h2 className="text-xl font-bold">Registrar — Add / Drop Review</h2><p className="mt-1 text-sm text-slate-700">Review requested registration changes before they affect the official record or Finance.</p>
+   {error&&<p className="mt-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm">{error}</p>}{message&&<p className="mt-3 rounded border border-[#D8C8DC] bg-[#FAF7FB] p-3 text-sm">{message}</p>}
+   {!requests.length?<p className="mt-4 rounded border border-dashed p-4 text-sm text-slate-600">No Add/Drop requests are awaiting Registrar action.</p>:
+   <div className="mt-4 space-y-4">{requests.map((r:any)=><article key={r.id} className="rounded-xl border border-[#E6DCE7] p-4">
+    <h3 className="font-bold">{r.student_number} — {r.full_name}</h3><p className="text-sm text-slate-600">{r.term_title} · Status {statusLabel(r.status)}</p>
+    <p className="mt-2 text-sm">{r.reason}</p>
+    <div className="mt-3 grid gap-3 md:grid-cols-2"><div><strong className="text-sm">Add</strong>{r.adds?.length?r.adds.map((x:any)=><p key={x.id} className="text-sm">{x.code} — {x.title} ({x.credits} cr.)</p>):<p className="text-sm text-slate-500">None</p>}</div>
+     <div><strong className="text-sm">Drop</strong>{r.drops?.length?r.drops.map((x:any)=><p key={x.id} className="text-sm">{x.code} — {x.title} ({x.credits} cr.)</p>):<p className="text-sm text-slate-500">None</p>}</div></div>
+    {r.status==='submitted'&&<><textarea rows={2} value={notes[r.id]||''} onChange={e=>setNotes(v=>({...v,[r.id]:e.target.value}))} className="mt-3 w-full rounded-lg border border-[#D8C8DC] p-2.5" placeholder="Registrar decision note"/>
+     <div className="mt-2 flex flex-wrap gap-2"><button disabled={busy||(notes[r.id]||'').trim().length<10} onClick={()=>void review(r.id,'approved')} className="hiau-finance-primary rounded px-3 py-2 text-sm font-semibold">Approve</button>
+      <button disabled={busy||(notes[r.id]||'').trim().length<10} onClick={()=>void review(r.id,'returned')} className="rounded border border-[#4A1249] px-3 py-2 text-sm">Return</button>
+      <button disabled={busy||(notes[r.id]||'').trim().length<10} onClick={()=>void review(r.id,'rejected')} className="rounded border border-[#4A1249] px-3 py-2 text-sm">Reject</button></div></>}
+    {r.status==='approved'&&<button disabled={busy} onClick={()=>void commit(r.id)} className="hiau-finance-primary mt-3 rounded px-4 py-2 text-sm font-semibold">Commit approved Add/Drop</button>}
+   </article>)}</div>}
+  </section>;
+ }
+
+ if(isFinance){
+  const items=data?.items||[];
+  return <section className="rounded-2xl border border-[#DED1E3] bg-white p-5 text-[#35103B] shadow-sm">
+   <h2 className="text-xl font-bold">Add / Drop — Finance Adjustment</h2><p className="mt-1 text-sm text-slate-700">Review committed registration changes. Drop credits are already posted according to the term refund window; added registrations remain unbilled until Finance posts them.</p>
+   {error&&<p className="mt-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm">{error}</p>}{message&&<p className="mt-3 rounded border border-[#D8C8DC] bg-[#FAF7FB] p-3 text-sm">{message}</p>}
+   {!items.length?<p className="mt-4 text-sm text-slate-600">No committed Add/Drop adjustments are available.</p>:<div className="mt-4 space-y-4">{items.map((item:any)=><article key={item.id} className="rounded-xl border border-[#E6DCE7] p-4">
+    <h3 className="font-bold">{item.student_number} — {item.full_name}</h3><p className="text-sm text-slate-600">{item.term_title}</p>
+    <div className="mt-3 grid gap-2 sm:grid-cols-3 text-sm"><p>Drop credit posted: <strong>{money(item.dropped_credit_cents)}</strong></p><p>Added unbilled estimate: <strong>{money(item.added_unbilled_cents)}</strong></p><p>Current account balance: <strong>{money(item.currentBalanceCents)}</strong></p></div>
+    {item.unbilledRegistrations?.length?<div className="mt-3 rounded-lg bg-[#FAF7FB] p-3"><p className="font-semibold">Unbilled added registrations</p>{item.unbilledRegistrations.map((x:any)=><p key={x.id} className="text-sm">{x.code} — {x.title}: {money(x.amount_cents)}</p>)}
+     <label className="mt-3 block text-sm font-semibold">Invoice due date<input type="date" value={dueDates[item.id]||''} onChange={e=>setDueDates(v=>({...v,[item.id]:e.target.value}))} className="mt-1 block rounded border border-[#D8C8DC] p-2"/></label>
+     <button disabled={busy||!dueDates[item.id]} onClick={()=>void postInvoice(item)} className="hiau-finance-primary mt-3 rounded px-4 py-2 text-sm font-semibold">Post Add/Drop tuition invoice</button>
+    </div>:<p className="mt-3 text-sm font-medium text-[#4A1249]">No unbilled added registrations remain.</p>}
+   </article>)}</div>}
+  </section>;
+ }
+ return null;
+};
