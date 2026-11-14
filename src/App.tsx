@@ -41,6 +41,7 @@ import {PartnerAcademicLibrary} from './components/portal/PartnerAcademicLibrary
 import {WebsiteVideoLibrary} from './components/portal/WebsiteVideoLibrary';
 import { SecureStudentWorkspace } from './components/portal/SecureStudentWorkspace';
 import {StudentCoursePlanning} from './components/portal/StudentCoursePlanning';
+import {StudentAddDropWorkflow} from './components/portal/StudentAddDropWorkflow';
 import {StudentFinancialStatement} from './components/portal/StudentFinancialStatement';
 import {StudentAssistanceRequests} from './components/portal/StudentAssistanceRequests';
 import { AdmissionsReviewModule } from './components/portal/AdmissionsReviewModule';
@@ -571,6 +572,7 @@ export default function App() {
                 <StudentCoursePlanning currentUser={currentUser} />
                 <StudentFinancialStatement currentUser={currentUser} />
                 <StudentAssistanceRequests currentUser={currentUser} />
+                <StudentAddDropWorkflow currentUser={currentUser} mode="student" />
               </>
             )}
 
@@ -585,6 +587,7 @@ export default function App() {
                 <RegistrarStudentLinking currentUser={currentUser} />
                 <StudentAssistanceRequests currentUser={currentUser} />
                 <StudentCoursePlanning currentUser={currentUser} />
+                <StudentAddDropWorkflow currentUser={currentUser} mode="registrar" />
               </>
             )}
 
@@ -594,6 +597,7 @@ export default function App() {
                 <FinanceRegistrationHandoff currentUser={currentUser} />
                 <StudentAssistanceRequests currentUser={currentUser} />
                 <FinancePaymentWorkflow currentUser={currentUser} />
+                <StudentAddDropWorkflow currentUser={currentUser} mode="finance" />
               </>
             )}
 
