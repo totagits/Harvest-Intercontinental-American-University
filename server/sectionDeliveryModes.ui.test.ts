@@ -17,7 +17,7 @@ test('section management and Course Board distinguish Classroom, Online and Hybr
  assert.match(admin,/Campus \/ location/);
 
  assert.match(board,/mode==='online'/);
- assert.match(board,/mode==='hybrid'/);
+ assert.match(board,/modeLabel=mode==='classroom'\?'Classroom':mode==='online'\?'Online':'Hybrid'/);
  assert.match(board,/Online access available after enrollment/);
  assert.match(board,/Section setup incomplete/);
  assert.match(board,/Classroom not assigned/);
