@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import type { Actor } from './identity';
+import {sectionSetupIssue} from './sectionDelivery';
 
 export class WorkflowError extends Error {
   constructor(
@@ -389,7 +390,7 @@ export class Operations {
       WHERE delivery_mode='online' AND (location LIKE '% / Online' OR location LIKE '% / Virtual');
     `);
 
-    const stagingFixtureKey='staging_section_delivery_fixtures_v1';
+    const stagingFixtureKey='staging_section_delivery_fixtures_v2';
     const stagingProgram=this.one("SELECT id FROM programs WHERE code='STG-ACCEPT'");
     const stagingTerm=this.one("SELECT id FROM terms WHERE code='STG-2026-A'");
     const stagingFixtureDone=this.one('SELECT value FROM settings WHERE key=?',stagingFixtureKey);
@@ -400,16 +401,16 @@ export class Operations {
       this.transaction(()=>{
         this.run(`UPDATE sections
           SET delivery_mode='hybrid',
-              location=CASE WHEN trim(location)='' THEN 'HIAU Staging' ELSE location END,
+              location=CASE WHEN lower(trim(location)) IN ('','tba','tbd','to be announced','to be determined','not assigned','not configured','n/a','na','-','—') THEN 'HIAU Staging' ELSE location END,
               classroom=CASE
-                WHEN trim(classroom)<>'' THEN classroom
+                WHEN lower(trim(classroom)) NOT IN ('','tba','tbd','to be announced','to be determined','not assigned','not configured','n/a','na','-','—') THEN classroom
                 WHEN course_id=(SELECT id FROM courses WHERE code='STG-101') THEN 'Room 101'
                 WHEN course_id=(SELECT id FROM courses WHERE code='STG-102') THEN 'Room 102'
                 WHEN course_id=(SELECT id FROM courses WHERE code='STG-103') THEN 'Room 103'
                 WHEN course_id=(SELECT id FROM courses WHERE code='STG-104') THEN 'Room 104'
                 ELSE classroom END,
               online_classroom=CASE
-                WHEN trim(online_classroom)<>'' THEN online_classroom
+                WHEN lower(trim(online_classroom)) NOT IN ('','tba','tbd','to be announced','to be determined','not assigned','not configured','n/a','na','-','—') THEN online_classroom
                 WHEN course_id=(SELECT id FROM courses WHERE code='STG-101') THEN 'HIAU Online Classroom — STG-101'
                 WHEN course_id=(SELECT id FROM courses WHERE code='STG-102') THEN 'HIAU Online Classroom — STG-102'
                 WHEN course_id=(SELECT id FROM courses WHERE code='STG-103') THEN 'HIAU Online Classroom — STG-103'
@@ -763,21 +764,13 @@ export class Operations {
           throw new WorkflowError(
             'Online classroom / LMS reference must be 300 characters or fewer.',
           );
-        if (deliveryMode === 'classroom' && (!location || !classroom))
-          throw new WorkflowError(
-            'Classroom sections require both a campus / location and a classroom / room.',
-          );
-        if (deliveryMode === 'online' && !onlineClassroom)
-          throw new WorkflowError(
-            'Online sections require an online classroom / LMS reference.',
-          );
-        if (
-          deliveryMode === 'hybrid' &&
-          (!location || !classroom || !onlineClassroom)
-        )
-          throw new WorkflowError(
-            'Hybrid sections require campus / location, classroom / room, and an online classroom / LMS reference.',
-          );
+        const setupError=sectionSetupIssue({
+          delivery_mode:deliveryMode,
+          location,
+          classroom,
+          online_classroom:onlineClassroom,
+        });
+        if(setupError)throw new WorkflowError(setupError);
         result = {
           id: id(),
           course_id: data.courseId,
@@ -848,21 +841,13 @@ export class Operations {
           throw new WorkflowError(
             'Online classroom / LMS reference must be 300 characters or fewer.',
           );
-        if (deliveryMode === 'classroom' && (!location || !nextClassroom))
-          throw new WorkflowError(
-            'Classroom sections require both a campus / location and a classroom / room.',
-          );
-        if (deliveryMode === 'online' && !onlineClassroom)
-          throw new WorkflowError(
-            'Online sections require an online classroom / LMS reference.',
-          );
-        if (
-          deliveryMode === 'hybrid' &&
-          (!location || !nextClassroom || !onlineClassroom)
-        )
-          throw new WorkflowError(
-            'Hybrid sections require campus / location, classroom / room, and an online classroom / LMS reference.',
-          );
+        const setupError=sectionSetupIssue({
+          delivery_mode:deliveryMode,
+          location,
+          classroom:nextClassroom,
+          online_classroom:onlineClassroom,
+        });
+        if(setupError)throw new WorkflowError(setupError);
         this.run(
           'UPDATE sections SET capacity=?,delivery_mode=?,location=?,classroom=?,online_classroom=? WHERE id=?',
           capacity,
