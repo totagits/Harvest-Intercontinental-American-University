@@ -19,7 +19,7 @@ export function installStudentAssistance(app:Express,store:Operations){
     FROM invoices WHERE student_id=? AND term_id=? ORDER BY created_at DESC`,
     row.student_id,row.term_id).map((invoice:any)=>({...invoice,balance_cents:store.invoiceBalance(invoice.id)}))
     .filter((invoice:any)=>invoice.balance_cents>0);
-  return {...row,award:award||null,eligible_invoices:invoices};
+  return {...row,status:award?'posted':row.status,award:award||null,eligible_invoices:invoices};
  };
  app.get('/api/student/assistance',(req,res)=>{
   const actor=actorOf(res);
@@ -48,7 +48,7 @@ export function installStudentAssistance(app:Express,store:Operations){
       :store.all(`SELECT a.*,s.student_number,s.full_name,t.title AS term_title
         FROM student_assistance_requests a JOIN students s ON s.id=a.student_id
         JOIN terms t ON t.id=a.term_id WHERE a.status IN('recommended','finance_reviewed')
-        ORDER BY a.created_at LIMIT 100`)).map(decorate);
+        ORDER BY a.created_at LIMIT 100`)).map(decorate).filter((item:any)=>!item.award);
   return res.json({requests:queue,queue:actor.role==='super_admin'?'combined':registrar(res)?'registrar':'finance'});
  });
  app.post('/api/student/assistance',(req,res)=>{
