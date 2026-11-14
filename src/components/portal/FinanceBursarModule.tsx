@@ -36,6 +36,11 @@ export const FinanceBursarModule: React.FC<FinanceBursarModuleProps> = ({ curren
     void reload(controller.signal);
     return () => controller.abort();
   }, [reload]);
+  useEffect(() => {
+    const refresh = () => void reload();
+    window.addEventListener('hiau:finance-data-changed', refresh);
+    return () => window.removeEventListener('hiau:finance-data-changed', refresh);
+  }, [reload]);
   const outstanding = summary ? Math.max(0, summary.finance.billedCents - summary.finance.creditsCents - summary.finance.reconciledCents) : 0;
   return <section className="space-y-4 rounded-2xl border border-[#ded1e3] bg-white p-5 text-[#35103b] shadow-sm" aria-label="Finance overview">
     <div className="flex flex-wrap items-start justify-between gap-3">
