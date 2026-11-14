@@ -248,7 +248,7 @@ export function installWorkspaces(app: Express, store: Operations) {
     }
   });
   const stagingRequest=(req:any)=>{
-    const requestHost=String(req.hostname||req.get?.('host')||'').toLowerCase().split(':')[0];
+    const requestHost=String(req.get?.('x-forwarded-host')||req.hostname||req.get?.('host')||'').toLowerCase().split(',')[0].trim().split(':')[0];
     let configuredHost='';
     try{configuredHost=new URL(process.env.APP_URL||'https://invalid.local').hostname.toLowerCase();}catch{}
     return requestHost==='hiau-staging.totag.network'||configuredHost==='hiau-staging.totag.network';
@@ -257,7 +257,7 @@ export function installWorkspaces(app: Express, store: Operations) {
     const actor=actorOf(res);
     if(!actor||actor.role!=='student')
       return res.status(403).json({error:'Student authorization required.'});
-    const requestHost=String(req.hostname||req.get?.('host')||'').toLowerCase().split(':')[0];
+    const requestHost=String(req.get?.('x-forwarded-host')||req.hostname||req.get?.('host')||'').toLowerCase().split(',')[0].trim().split(':')[0];
     if(requestHost!=='hiau-staging.totag.network')
       return res.status(404).json({error:'Staging acceptance utility is unavailable.'});
     if(!/^\s*MICHAEL\s+GWOAH\s*$/i.test(actor.name||''))
