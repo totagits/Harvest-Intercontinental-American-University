@@ -207,7 +207,7 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
     <div className="rounded-xl border border-[#E6DCE7] p-4"><h3 className="flex items-center gap-2 font-bold text-[#4A1249]"><ArrowDownCircle className="h-5 w-5"/>Drop from My Courses</h3>
      <p className="mt-1 text-xs text-slate-600">Only courses already in your official current enrollment can be selected for drop.</p>
      <div className="mt-3 space-y-2">{currentRegs.length?currentRegs.map(r=><label key={r.registration_id} className="flex gap-3 rounded-lg bg-[#FAF8FB] p-3">
-      <input type="checkbox" checked={drops.includes(r.registration_id)} disabled={busy||registrationClosed} onChange={e=>void toggleDrop(r.registration_id,e.target.checked)}/>
+      <input type="checkbox" checked={drops.includes(r.registration_id)} disabled={busy||(registrationClosed&&!drops.includes(r.registration_id))} onChange={e=>void toggleDrop(r.registration_id,e.target.checked)}/>
       <span><strong>{r.course_code}</strong> — {r.course_title}<br/><span className="text-xs text-slate-600">{r.credits} credits · {r.schedule||'Schedule pending'} · {sectionAccess(r)}</span></span></label>):<p className="text-sm text-slate-600">No active registrations in this term.</p>}</div>
     </div>
    </div>
