@@ -5,7 +5,7 @@ import type {UserProfile} from '../../types';
 type Term={id:string;title:string;max_credits:number;start_date:string;end_date:string};
 type Section={
  id:string;term_id:string;code:string;capacity:number;location:string;schedule:string;
- course_id:string;course_code:string;course_title:string;credits:number;lecturer_name?:string|null;enrolled_count:number;
+ course_id:string;course_code:string;course_title:string;credits:number;lecturer_name?:string|null;enrolled_count:number;program_eligible:number;
 };
 type Registration={registration_id:string;section_id:string;term_id:string;course_id:string;course_code:string;course_title:string;credits:number};
 type Cart={term_id:string;addSectionIds:string[];dropRegistrationIds:string[];reason:string;updated_at:string};
@@ -107,6 +107,7 @@ export const StudentCourseBoard:React.FC<{currentUser:UserProfile;onOpenStudentW
     const inCart=addIds.includes(section.id);
     const seats=Math.max(0,Number(section.capacity)-Number(section.enrolled_count||0));
     const full=seats<=0;
+    const programEligible=Number(section.program_eligible)===1;
     return <article key={section.id} className="rounded-xl border border-[#E6DCE7] p-4">
      <div className="flex flex-wrap items-start justify-between gap-2"><div>
       <p className="font-mono text-xs font-bold text-[#8B5C1C]">{section.course_code} · Section {section.code}</p>
@@ -120,10 +121,11 @@ export const StudentCourseBoard:React.FC<{currentUser:UserProfile;onOpenStudentW
      </div>
      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#EEE5F0] pt-3">
       <div className="text-xs">{already?<span className="inline-flex items-center gap-1 font-semibold text-[#4A1249]"><CheckCircle2 className="h-4 w-4"/>In My Courses</span>:
+       !programEligible?<span className="font-semibold text-slate-500">Not currently approved for your program</span>:
        full?<span className="font-semibold text-rose-700">Section full</span>:
        inCart?<span className="font-semibold text-[#4A1249]">In Add/Drop Cart</span>:
        <span className="text-slate-600">Available to request</span>}</div>
-      {!already&&!full&&(inCart?
+      {!already&&programEligible&&!full&&(inCart?
        <button type="button" disabled={busy===section.id} onClick={()=>void updateAddition(section.id,true)}
         className="rounded-lg border border-[#4A1249] px-3 py-2 text-xs font-semibold text-[#4A1249] disabled:opacity-50">Remove from cart</button>:
        <button type="button" disabled={busy===section.id} onClick={()=>void updateAddition(section.id)}
