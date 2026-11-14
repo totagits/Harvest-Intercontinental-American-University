@@ -1,5 +1,5 @@
 import React,{useCallback,useEffect,useMemo,useState} from 'react';
-import {ArrowDownCircle,ArrowUpCircle,RefreshCcw} from 'lucide-react';
+import {ArrowDownCircle,BookOpen,RefreshCcw,ShoppingCart} from 'lucide-react';
 import type {UserProfile} from '../../types';
 
 const money=(cents:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format((cents||0)/100);
@@ -16,16 +16,25 @@ async function post(url:string,body:object){
  if(!r.ok)throw new Error(d.error||'Add/Drop action failed.');
  return d;
 }
+async function putCart(body:object){
+ const token=await csrf();
+ const r=await fetch('/api/student/add-drop/cart',{method:'PUT',credentials:'same-origin',
+  headers:{'Content-Type':'application/json','x-csrf-token':token},body:JSON.stringify(body)});
+ const d=await r.json().catch(()=>({}));
+ if(!r.ok)throw new Error(d.error||'The Add/Drop cart could not be saved.');
+ return d;
+}
 type StudentState={
  linked:boolean;
  terms:{id:string;title:string;max_credits:number}[];
- sections:{id:string;term_id:string;course_code:string;course_title:string;credits:number}[];
- registrations:{registration_id:string;section_id:string;term_id:string;course_code:string;course_title:string;credits:number}[];
+ sections:{id:string;term_id:string;course_id:string;course_code:string;course_title:string;credits:number;schedule?:string;location?:string}[];
+ registrations:{registration_id:string;section_id:string;term_id:string;course_id:string;course_code:string;course_title:string;credits:number;schedule?:string;location?:string}[];
  requests:any[];
+ carts:{term_id:string;addSectionIds:string[];dropRegistrationIds:string[];reason:string;updated_at:string}[];
 };
-const statusLabel=(s:string)=>s.replaceAll('_',' ').replace(/w/g,c=>c.toUpperCase());
+const statusLabel=(s:string)=>s.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
 
-export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'student'|'registrar'|'finance'}>=({currentUser,mode})=>{
+export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'student'|'registrar'|'finance';onOpenCourseBoard?:()=>void}>=({currentUser,mode,onOpenCourseBoard})=>{
  const isStudent=mode==='student'&&currentUser.role==='student';
  const isRegistrar=mode==='registrar'&&['super_admin','registrar'].includes(currentUser.role);
  const isFinance=mode==='finance'&&['super_admin','bursar','registrar'].includes(currentUser.role);
@@ -40,21 +49,46 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
   const d=await r.json().catch(()=>({}));
   if(!r.ok)throw new Error(d.error||'Could not load Add/Drop workflow.');
   setData(d);
-  if(isStudent&&!termId&&d.terms?.[0]?.id)setTermId(d.terms[0].id);
+  if(isStudent){
+   const activeTerm=termId||d.terms?.[0]?.id||'';
+   if(activeTerm&&!termId)setTermId(activeTerm);
+   const cart=d.carts?.find((item:any)=>item.term_id===activeTerm);
+   setAdds(cart?.addSectionIds||[]);
+   setDrops(cart?.dropRegistrationIds||[]);
+   setReason(cart?.reason||'');
+  }
  },[endpoint,isStudent,termId]);
  useEffect(()=>{void load().catch(e=>setError(e instanceof Error?e.message:'Could not load Add/Drop workflow.'));},[load]);
 
  const student=data as StudentState|null;
  const currentRegs=useMemo(()=>isStudent?(student?.registrations||[]).filter(r=>r.term_id===termId):[],[isStudent,student,termId]);
- const available=useMemo(()=>{
-  if(!isStudent)return [];
-  const registeredCourses=new Set(currentRegs.map(r=>r.course_code));
-  return (student?.sections||[]).filter(s=>s.term_id===termId&&!registeredCourses.has(s.course_code));
- },[isStudent,student,termId,currentRegs]);
+ const selectedAdditions=useMemo(()=>isStudent?(student?.sections||[]).filter(s=>s.term_id===termId&&adds.includes(s.id)):[],[isStudent,student,termId,adds]);
  const currentCredits=currentRegs.reduce((n,r)=>n+Number(r.credits||0),0);
  const droppedCredits=currentRegs.filter(r=>drops.includes(r.registration_id)).reduce((n,r)=>n+Number(r.credits||0),0);
- const addedCredits=available.filter(s=>adds.includes(s.id)).reduce((n,s)=>n+Number(s.credits||0),0);
+ const addedCredits=selectedAdditions.reduce((n,s)=>n+Number(s.credits||0),0);
  const resultingCredits=currentCredits-droppedCredits+addedCredits;
+
+ const saveStudentCart=async(nextAdds:string[],nextDrops:string[],nextReason=reason)=>{
+  if(!termId)return;
+  await putCart({termId,addSectionIds:nextAdds,dropRegistrationIds:nextDrops,reason:nextReason});
+ };
+ const toggleDrop=async(registrationId:string,checked:boolean)=>{
+  if(busy)return;
+  const next=checked?Array.from(new Set([...drops,registrationId])):drops.filter(id=>id!==registrationId);
+  setBusy(true);setError('');setMessage('');
+  try{await saveStudentCart(adds,next,reason);setDrops(next);
+   setMessage(checked?'Course added to the drop side of your Add/Drop cart.':'Course removed from the drop side of your Add/Drop cart.');
+  }catch(e){setError(e instanceof Error?e.message:'The Add/Drop cart could not be updated.');}
+  finally{setBusy(false);}
+ };
+ const removeAddition=async(sectionId:string)=>{
+  if(busy)return;
+  const next=adds.filter(id=>id!==sectionId);
+  setBusy(true);setError('');setMessage('');
+  try{await saveStudentCart(next,drops,reason);setAdds(next);setMessage('Course removed from your Add/Drop cart.');}
+  catch(e){setError(e instanceof Error?e.message:'The Add/Drop cart could not be updated.');}
+  finally{setBusy(false);}
+ };
 
  const submit=async()=>{
   if(busy)return;setBusy(true);setError('');setMessage('');
@@ -94,31 +128,52 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
 
  if(isStudent)return <section className="rounded-2xl border border-[#DED1E3] bg-white p-5 text-[#35103B] shadow-sm">
   <div className="flex flex-wrap items-start justify-between gap-3"><div>
-   <h2 className="text-xl font-bold">Course Add / Drop</h2>
-   <p className="mt-1 text-sm text-slate-700">Request changes to an existing registration. Submission alone does not change enrollment or tuition; Registrar commitment is required.</p>
-  </div><button onClick={()=>void load()} className="rounded-lg border border-[#D8C8DC] px-3 py-2 text-sm font-semibold text-[#4A1249]"><RefreshCcw className="mr-2 inline h-4 w-4"/>Refresh</button></div>
+   <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8B5C1C]">Student Workspace</p>
+   <h2 className="mt-1 flex items-center gap-2 text-xl font-bold"><ShoppingCart className="h-5 w-5"/>My Add/Drop Cart</h2>
+   <p className="mt-1 max-w-3xl text-sm text-slate-700">Courses to add come from the University Course Board in Academic Planning. Courses to drop come only from My Courses below. Nothing changes in your official enrollment or tuition until the Registrar approves and commits the request.</p>
+  </div><div className="flex flex-wrap gap-2">
+   {onOpenCourseBoard&&<button type="button" onClick={onOpenCourseBoard} className="inline-flex items-center gap-2 rounded-lg border border-[#4A1249] px-3 py-2 text-sm font-semibold text-[#4A1249]"><BookOpen className="h-4 w-4"/>Browse Course Board</button>}
+   <button type="button" onClick={()=>void load()} className="rounded-lg border border-[#D8C8DC] px-3 py-2 text-sm font-semibold text-[#4A1249]"><RefreshCcw className="mr-2 inline h-4 w-4"/>Refresh cart</button>
+  </div></div>
   {error&&<p className="mt-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm">{error}</p>}
   {message&&<p className="mt-3 rounded border border-[#D8C8DC] bg-[#FAF7FB] p-3 text-sm font-medium text-[#4A1249]">{message}</p>}
   {!student?.linked?<p className="mt-4 text-sm">A linked active student record is required.</p>:<>
-   <div className="mt-4"><label className="text-sm font-semibold">Academic term<select value={termId} onChange={e=>{setTermId(e.target.value);setAdds([]);setDrops([]);}}
-    className="mt-1 block w-full rounded-lg border border-[#D8C8DC] p-2.5">{student.terms.map(t=><option key={t.id} value={t.id}>{t.title} — limit {t.max_credits} credits</option>)}</select></label></div>
+   <div className="mt-4"><label className="text-sm font-semibold">Academic term<select value={termId} onChange={e=>{
+     const next=e.target.value;setTermId(next);
+     const cart=student.carts?.find(item=>item.term_id===next);setAdds(cart?.addSectionIds||[]);setDrops(cart?.dropRegistrationIds||[]);setReason(cart?.reason||'');
+    }} className="mt-1 block w-full rounded-lg border border-[#D8C8DC] p-2.5">
+    {student.terms.map(t=><option key={t.id} value={t.id}>{t.title} — limit {t.max_credits} credits</option>)}</select></label></div>
+
    <div className="mt-5 grid gap-5 lg:grid-cols-2">
-    <div><h3 className="flex items-center gap-2 font-bold text-[#4A1249]"><ArrowDownCircle className="h-5 w-5"/>Drop currently enrolled course</h3>
-     <div className="mt-2 space-y-2">{currentRegs.length?currentRegs.map(r=><label key={r.registration_id} className="flex gap-3 rounded-lg border border-[#E6DCE7] p-3">
-      <input type="checkbox" checked={drops.includes(r.registration_id)} onChange={e=>setDrops(v=>e.target.checked?[...v,r.registration_id]:v.filter(x=>x!==r.registration_id))}/>
-      <span><strong>{r.course_code}</strong> — {r.course_title}<br/><span className="text-xs text-slate-600">{r.credits} credits</span></span></label>):<p className="text-sm text-slate-600">No active registrations in this term.</p>}</div>
+    <div className="rounded-xl border border-[#E6DCE7] p-4"><div className="flex items-center justify-between gap-3">
+     <div><h3 className="flex items-center gap-2 font-bold text-[#4A1249]"><BookOpen className="h-5 w-5"/>Add from Course Board</h3>
+      <p className="mt-1 text-xs text-slate-600">These courses were selected from the university-wide Course Board.</p></div>
+     {onOpenCourseBoard&&<button type="button" onClick={onOpenCourseBoard} className="text-xs font-semibold text-[#4A1249] underline">Browse courses</button>}
     </div>
-    <div><h3 className="flex items-center gap-2 font-bold text-[#4A1249]"><ArrowUpCircle className="h-5 w-5"/>Add available course</h3>
-     <div className="mt-2 space-y-2">{available.length?available.map(s=><label key={s.id} className="flex gap-3 rounded-lg border border-[#E6DCE7] p-3">
-      <input type="checkbox" checked={adds.includes(s.id)} onChange={e=>setAdds(v=>e.target.checked?[...v,s.id]:v.filter(x=>x!==s.id))}/>
-      <span><strong>{s.course_code}</strong> — {s.course_title}<br/><span className="text-xs text-slate-600">{s.credits} credits</span></span></label>):<p className="text-sm text-slate-600">No additional sections are currently available.</p>}</div>
+    <div className="mt-3 space-y-2">{selectedAdditions.length?selectedAdditions.map(s=><div key={s.id} className="flex items-start justify-between gap-3 rounded-lg bg-[#FAF8FB] p-3">
+     <span><strong>{s.course_code}</strong> — {s.course_title}<br/><span className="text-xs text-slate-600">{s.credits} credits · {s.schedule||'Schedule pending'}</span></span>
+     <button type="button" disabled={busy} onClick={()=>void removeAddition(s.id)} className="shrink-0 rounded border border-[#4A1249] px-2 py-1 text-xs font-semibold text-[#4A1249] disabled:opacity-50">Remove</button>
+    </div>):<p className="rounded border border-dashed border-[#D8C8DC] p-3 text-sm text-slate-600">No additions selected. Use Academic Planning → University Course Board to add a course to this cart.</p>}</div>
+    </div>
+
+    <div className="rounded-xl border border-[#E6DCE7] p-4"><h3 className="flex items-center gap-2 font-bold text-[#4A1249]"><ArrowDownCircle className="h-5 w-5"/>Drop from My Courses</h3>
+     <p className="mt-1 text-xs text-slate-600">Only courses already in your official current enrollment can be selected for drop.</p>
+     <div className="mt-3 space-y-2">{currentRegs.length?currentRegs.map(r=><label key={r.registration_id} className="flex gap-3 rounded-lg bg-[#FAF8FB] p-3">
+      <input type="checkbox" checked={drops.includes(r.registration_id)} disabled={busy} onChange={e=>void toggleDrop(r.registration_id,e.target.checked)}/>
+      <span><strong>{r.course_code}</strong> — {r.course_title}<br/><span className="text-xs text-slate-600">{r.credits} credits · {r.schedule||'Schedule pending'}</span></span></label>):<p className="text-sm text-slate-600">No active registrations in this term.</p>}</div>
     </div>
    </div>
-   <p className="mt-4 font-semibold">Current credits: {currentCredits} · Resulting credits: {resultingCredits}</p>
-   {resultingCredits>0&&resultingCredits<12&&<p className="mt-2 rounded border border-[#E5D3A6] bg-[#FFF9EA] p-3 text-xs text-[#6F4F16]">This change would leave fewer than 12 credits. The Registrar must review the underload impact before committing it.</p>}
-   <label className="mt-4 block text-sm font-semibold">Reason for Add/Drop<textarea value={reason} onChange={e=>setReason(e.target.value)} rows={3} maxLength={1000}
-    className="mt-1 block w-full rounded-lg border border-[#D8C8DC] p-2.5" placeholder="Explain the requested registration change (minimum 20 characters)"/></label>
-   <button disabled={busy||(!adds.length&&!drops.length)||reason.trim().length<20} onClick={()=>void submit()} className="hiau-finance-primary mt-3 rounded-lg px-4 py-2.5 text-sm font-bold">Submit Add/Drop request</button>
+
+   <div className="mt-5 rounded-xl border border-[#D8C8DC] bg-[#FAF7FB] p-4">
+    <h3 className="font-bold text-[#4A1249]">Request summary</h3>
+    <p className="mt-2 text-sm">Current credits: <strong>{currentCredits}</strong> · Add: <strong>{addedCredits}</strong> · Drop: <strong>{droppedCredits}</strong> · Resulting credits: <strong>{resultingCredits}</strong></p>
+    {resultingCredits>0&&resultingCredits<12&&<p className="mt-2 rounded border border-[#E5D3A6] bg-[#FFF9EA] p-3 text-xs text-[#6F4F16]">This change would leave fewer than 12 credits. The Registrar must review the underload impact before committing it.</p>}
+    <label className="mt-3 block text-sm font-semibold">Reason for Add/Drop<textarea value={reason} onChange={e=>setReason(e.target.value)}
+     onBlur={()=>void saveStudentCart(adds,drops,reason).catch(e=>setError(e instanceof Error?e.message:'The Add/Drop cart reason could not be saved.'))}
+     rows={3} maxLength={1000} className="mt-1 block w-full rounded-lg border border-[#D8C8DC] bg-white p-2.5" placeholder="Explain the requested registration change (minimum 20 characters)"/></label>
+    <button disabled={busy||(!adds.length&&!drops.length)||reason.trim().length<20} onClick={()=>void submit()} className="hiau-finance-primary mt-3 rounded-lg px-4 py-2.5 text-sm font-bold">Submit Add/Drop request to Registrar</button>
+   </div>
+
    <div className="mt-6"><h3 className="font-bold">My Add/Drop requests</h3>{student.requests?.length?<div className="mt-2 space-y-2">{student.requests.map((r:any)=><div key={r.id} className="rounded-lg border border-[#E6DCE7] p-3 text-sm">
     <strong>{statusLabel(r.status)}</strong> · {r.addSectionIds.length} add · {r.dropRegistrationIds.length} drop<p className="mt-1 text-slate-600">{r.reason}</p>{r.reviewer_note&&<p className="mt-1 text-slate-600">Registrar: {r.reviewer_note}</p>}</div>)}</div>:<p className="mt-2 text-sm text-slate-600">No Add/Drop requests yet.</p>}</div>
   </>}
