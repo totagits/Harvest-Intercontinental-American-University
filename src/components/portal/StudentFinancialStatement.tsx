@@ -48,7 +48,7 @@ export const StudentFinancialStatement:React.FC<{currentUser:UserProfile}>=({cur
         className="rounded-lg border border-purple-200 p-4 text-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
          <div><h3 className="font-bold">{invoice.number} · {invoice.term_title}</h3>
-          <p className="mt-1 text-slate-600">Due: {universityDate(invoice.due_date)} · Billed: {money(invoice.amount_cents)} · {invoice.balance_cents<0?'Credit / refund due':'Outstanding'}: <strong>{money(Math.abs(invoice.balance_cents))}</strong></p></div>
+          <p className="mt-1 text-slate-600">Due: {universityDate(invoice.due_date)} · Billed: {money(invoice.amount_cents)} · {invoice.balance_cents<0?'Credit / refund due':'Outstanding'}: <strong>{money(Math.abs(invoice.balance_cents))}</strong> · Status: <strong>{invoice.balance_cents<0?'Credit / refund due':invoice.balance_cents===0?'Paid in full':'Payment due'}</strong></p></div>
          <button type="button" disabled={!!documentBusy} onClick={async()=>{
           setDocumentBusy('invoice-'+invoice.id);setError('');
           try{await downloadUniversityInvoice({
