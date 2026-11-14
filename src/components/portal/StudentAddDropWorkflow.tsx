@@ -186,7 +186,13 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
     {resultingCredits>0&&resultingCredits<12&&<p className="mt-2 rounded border border-[#E5D3A6] bg-[#FFF9EA] p-3 text-xs text-[#6F4F16]">This change would leave fewer than 12 credits. The Registrar must review the underload impact before committing it.</p>}
     <label className="mt-3 block text-sm font-semibold">Reason for Add/Drop<textarea value={reason} onChange={e=>setReason(e.target.value)}
      rows={3} maxLength={1000} className="mt-1 block w-full rounded-lg border border-[#D8C8DC] bg-white p-2.5" placeholder="Explain the requested registration change (minimum 20 characters)"/></label>
-    <button disabled={busy||(!adds.length&&!drops.length)||reason.trim().length<20} onClick={()=>void submit()} className="hiau-finance-primary mt-3 rounded-lg px-4 py-2.5 text-sm font-bold">Submit Add/Drop request to Registrar</button>
+    <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs">
+     <span className={reason.trim().length<20?'font-semibold text-[#8B5C1C]':'font-semibold text-[#4A1249]'}>
+      {reason.trim().length<20?(20-reason.trim().length)+' more character'+((20-reason.trim().length)===1?'':'s')+' required before submission.':'Reason requirement satisfied.'}
+     </span>
+     <span className="text-slate-500">{reason.length}/1000 characters</span>
+    </div>
+    <button disabled={busy||(!adds.length&&!drops.length)||reason.trim().length<20} onClick={()=>void submit()} title={reason.trim().length<20?'Enter at least 20 characters in the reason field before submitting.':undefined} className="hiau-finance-primary mt-3 rounded-lg px-4 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50">Submit Add/Drop request to Registrar</button>
    </div>
 
    <div className="mt-6"><h3 className="font-bold">My Add/Drop requests</h3>{student.requests?.length?<div className="mt-2 space-y-2">{student.requests.map((r:any)=><div key={r.id} className="rounded-lg border border-[#E6DCE7] p-3 text-sm">
