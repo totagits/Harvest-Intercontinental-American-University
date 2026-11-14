@@ -13,7 +13,7 @@ const semesterWeek=(start:string)=>{
  if(!Number.isFinite(startMs))return 99;
  return Math.max(1,Math.floor((Date.now()-startMs)/(7*86400000))+1);
 };
-const refundRate=(week:number)=>week<=2?1:week<=4?.5:0;
+const refundRate=(week:number)=>week<=2?1:week<=4?0.5:0;
 
 export function installStudentAddDrop(app:Express,store:Operations){
  store.run(`CREATE TABLE IF NOT EXISTS student_add_drop_requests(
