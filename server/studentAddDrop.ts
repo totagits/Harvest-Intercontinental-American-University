@@ -3,6 +3,7 @@ import express from 'express';
 import crypto from 'node:crypto';
 import {Operations} from './operations';
 import {actorOf} from './identity';
+import {sectionSetupComplete,sectionSetupIssue} from './sectionDelivery';
 
 const now=()=>new Date().toISOString();
 const uuid=/^[a-f0-9-]{36}$/i;
@@ -74,7 +75,7 @@ export function installStudentAddDrop(app:Express,store:Operations){
    if(!instructor)return;
    const id=crypto.randomUUID();
    store.run(`INSERT INTO sections(id,course_id,term_id,lecturer_id,code,capacity,delivery_mode,location,classroom,online_classroom,schedule,created_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,id,course.id,term.id,instructor.id,'A',30,'hybrid','HIAU Staging','','','Tue/Thu 14:00–15:30',now());
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,id,course.id,term.id,instructor.id,'A',20,'hybrid','HIAU Staging','Room 104','HIAU Online Classroom — STG-104','Tue/Thu 14:00–15:30',now());
    created=true;
   }
   if(created)store.audit(actorOf(res)||'system','STAGING_ADD_DROP_SECTION_READY','section',null,{courseCode:'STG-104',termCode:'STG-2026-A',testData:true});
@@ -110,6 +111,8 @@ export function installStudentAddDrop(app:Express,store:Operations){
   const remaining=current.filter((r:any)=>!dropSet.has(r.registration_id));
   const courseIds=new Set(remaining.map((r:any)=>r.course_id));
   for(const section of additions){
+   const setupIssue=sectionSetupIssue(section);
+   if(setupIssue)return {error:`${section.course_code} is not available because its section setup is incomplete: ${setupIssue}`};
    if(!store.one('SELECT 1 AS ok FROM program_requirements WHERE program_id=? AND course_id=?',student.program_id,section.course_id))
     return {error:`${section.course_code} is not currently approved for this student's academic program.`};
    if(courseIds.has(section.course_id))return {error:'The resulting schedule cannot contain duplicate registrations for the same course.'};
@@ -145,7 +148,7 @@ export function installStudentAddDrop(app:Express,store:Operations){
    const student=studentFor(res);
    if(!student)return res.json({linked:false,terms:[],sections:[],registrations:[],requests:[]});
    const terms=store.all("SELECT id,title,status,max_credits,start_date,end_date FROM terms WHERE status='open' ORDER BY start_date");
-   const sections=store.all(`SELECT s.id,s.term_id,s.code,s.capacity,s.delivery_mode,s.location,s.classroom,
+   const sectionRows=store.all(`SELECT s.id,s.term_id,s.code,s.capacity,s.delivery_mode,s.location,s.classroom,
       CASE WHEN EXISTS(
         SELECT 1 FROM registrations ownr
         WHERE ownr.student_id=? AND ownr.section_id=s.id AND ownr.status='enrolled'
@@ -159,6 +162,10 @@ export function installStudentAddDrop(app:Express,store:Operations){
     FROM sections s JOIN courses c ON c.id=s.course_id JOIN terms t ON t.id=s.term_id
     LEFT JOIN users u ON u.id=s.lecturer_id
     WHERE t.status='open' ORDER BY c.code,s.code`,student.id,student.program_id);
+   const sections=sectionRows.map((row:any)=>{
+    const source=store.one('SELECT delivery_mode,location,classroom,online_classroom FROM sections WHERE id=?',row.id);
+    return {...row,setup_complete:sectionSetupComplete(source)?1:0,setup_issue:sectionSetupIssue(source)||''};
+   });
    const registrations=store.all(`SELECT r.id AS registration_id,r.section_id,s.term_id,c.id AS course_id,
       c.code AS course_code,c.title AS course_title,c.credits,s.schedule,s.delivery_mode,s.location,s.classroom,s.online_classroom,u.name AS lecturer_name
     FROM registrations r JOIN sections s ON s.id=r.section_id JOIN courses c ON c.id=s.course_id
@@ -194,11 +201,13 @@ export function installStudentAddDrop(app:Express,store:Operations){
   const term=store.one("SELECT id FROM terms WHERE id=? AND status='open'",termId);
   if(!term)return res.status(409).json({error:'The selected academic term is not open.'});
   if(addIds.length){
-    const additions=store.all(`SELECT s.id,s.course_id,s.capacity,c.code AS course_code
+    const additions=store.all(`SELECT s.*,c.code AS course_code
       FROM sections s JOIN courses c ON c.id=s.course_id
       WHERE s.term_id=? AND s.id IN (${addIds.map(()=>'?').join(',')})`,termId,...addIds);
     if(additions.length!==addIds.length)return res.status(409).json({error:'Every course added to the cart must be an open-term section.'});
     for(const section of additions){
+      const setupIssue=sectionSetupIssue(section);
+      if(setupIssue)return res.status(409).json({error:`${section.course_code} is not yet available because its section setup is incomplete.`});
       if(!store.one('SELECT 1 AS ok FROM program_requirements WHERE program_id=? AND course_id=?',student.program_id,section.course_id))
         return res.status(409).json({error:`${section.course_code} is not currently approved for your academic program.`});
       if(store.one("SELECT COUNT(*) AS n FROM registrations WHERE section_id=? AND status='enrolled'",section.id).n>=section.capacity)
