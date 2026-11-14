@@ -144,6 +144,7 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
     body:JSON.stringify({action:'invoice',data:{studentId:item.student_id,termId:item.term_id,dueDate:due}})});
    const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Add/Drop invoice could not be posted.');
    setMessage('Add/Drop tuition invoice posted and audited.');await load();
+   window.dispatchEvent(new CustomEvent('hiau:finance-data-changed',{detail:{source:'add-drop-invoice-posted'}}));
   }catch(e){setError(e instanceof Error?e.message:'Add/Drop invoice could not be posted.');}finally{setBusy(false);}
  };
 
