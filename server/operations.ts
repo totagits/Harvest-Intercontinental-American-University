@@ -1129,23 +1129,52 @@ export class Operations {
           );
         if (!['bank', 'mobile_money', 'cash'].includes(data.method))
           throw new WorkflowError('Choose a supported receipt method.');
+        const receivedDate=day(data.receivedDate, 'Receipt date');
+        const externalReference=
+          typeof data.externalReference === 'string'
+            ? data.externalReference.trim()
+            : '';
+        if (externalReference.length > 120)
+          throw new WorkflowError(
+            'External transaction reference must be 120 characters or fewer.',
+          );
+        if (data.method !== 'cash' && !externalReference)
+          throw new WorkflowError(
+            'Bank and mobile-money payments require an external transaction reference.',
+          );
+        const year=receivedDate.slice(0,4);
+        const sequenceKey='payment_sequence_'+year;
+        const sequenceRow=this.one(
+          'SELECT value FROM settings WHERE key=?',
+          sequenceKey,
+        );
+        const sequence=Math.max(0,Number(sequenceRow?.value||0))+1;
+        this.run(
+          'INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+          sequenceKey,
+          String(sequence),
+        );
+        const paymentReference=
+          'HIAU-PAY-'+year+'-'+String(sequence).padStart(6,'0');
         result = {
           id: id(),
           invoice_id: invoice.id,
-          reference: text(data.reference, 'Bank or receipt reference', 120),
+          reference: paymentReference,
           amount_cents: amount,
           method: data.method,
-          received_date: day(data.receivedDate, 'Receipt date'),
+          received_date: receivedDate,
           status: 'recorded',
           recorded_by: actor.id,
           reviewed_by: null,
           review_note: '',
           created_at: now(),
           reviewed_at: null,
+          external_reference: externalReference,
         };
         this.run(
-          'INSERT INTO payments VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
-          ...Object.values(result),
+          'INSERT INTO payments(id,invoice_id,reference,amount_cents,method,received_date,status,recorded_by,reviewed_by,review_note,created_at,reviewed_at,external_reference) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+          result.id,result.invoice_id,result.reference,result.amount_cents,result.method,result.received_date,result.status,
+          result.recorded_by,result.reviewed_by,result.review_note,result.created_at,result.reviewed_at,result.external_reference,
         );
       } else if (action === 'reconcilePayment') {
         this.permitted(actor, ['bursar']);
