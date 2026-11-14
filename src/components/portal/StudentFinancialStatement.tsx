@@ -1,7 +1,7 @@
 import React,{useCallback,useEffect,useState} from 'react';
 import {Download,ReceiptText} from 'lucide-react';
 import type {UserProfile} from '../../types';
-import {downloadUniversityInvoice,downloadUniversityReceipt} from '../../utils/studentFinanceDocuments';
+import {downloadUniversityInvoice,downloadUniversityReceipt,universityDate} from '../../utils/studentFinanceDocuments';
 type Statement={
  linked:boolean;studentNumber?:string;studentName?:string;currency:'USD';totalBalanceCents:number;
  invoices:{
@@ -47,7 +47,7 @@ export const StudentFinancialStatement:React.FC<{currentUser:UserProfile}>=({cur
         className="rounded-lg border border-purple-200 p-4 text-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
          <div><h3 className="font-bold">{invoice.number} · {invoice.term_title}</h3>
-          <p className="mt-1 text-slate-600">Due: {invoice.due_date} · Billed: {money(invoice.amount_cents)} · Balance: <strong>{money(invoice.balance_cents)}</strong></p></div>
+          <p className="mt-1 text-slate-600">Due: {universityDate(invoice.due_date)} · Billed: {money(invoice.amount_cents)} · Balance: <strong>{money(invoice.balance_cents)}</strong></p></div>
          <button type="button" disabled={!!documentBusy} onClick={async()=>{
           setDocumentBusy('invoice-'+invoice.id);setError('');
           try{await downloadUniversityInvoice({
