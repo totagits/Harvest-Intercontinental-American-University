@@ -460,7 +460,7 @@ export function AccountCenter({ user }: any) {
     reload();
   }, [isAdmin]);
   return (
-    <div className="campus-workspace">
+    <div className="campus-workspace hiau-account-center">
       <div className="campus-eyebrow">ACCOUNT & INTEGRATIONS</div>
       <h2>Your account and university connections</h2>
       <Panel title="Change password">
