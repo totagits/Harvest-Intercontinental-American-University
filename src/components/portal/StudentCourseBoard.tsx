@@ -1,10 +1,10 @@
 import React,{useCallback,useEffect,useMemo,useState} from 'react';
-import {BookOpen,Building2,CheckCircle2,Clock,MapPin,RefreshCcw,Search,ShoppingCart,User,Users} from 'lucide-react';
+import {BookOpen,Building2,CheckCircle2,Clock,MapPin,Monitor,RefreshCcw,Search,ShoppingCart,User,Users} from 'lucide-react';
 import type {UserProfile} from '../../types';
 
 type Term={id:string;title:string;max_credits:number;start_date:string;end_date:string};
 type Section={
- id:string;term_id:string;code:string;capacity:number;location:string;classroom:string;schedule:string;
+ id:string;term_id:string;code:string;capacity:number;delivery_mode:'classroom'|'online'|'hybrid';location:string;classroom:string;online_classroom:string;schedule:string;
  course_id:string;course_code:string;course_title:string;credits:number;lecturer_name?:string|null;enrolled_count:number;program_eligible:number;
 };
 type Registration={registration_id:string;section_id:string;term_id:string;course_id:string;course_code:string;course_title:string;credits:number};
@@ -48,7 +48,8 @@ export const StudentCourseBoard:React.FC<{currentUser:UserProfile;onOpenStudentW
   return (state?.sections||[]).filter(s=>s.term_id===termId&&(!q||
    s.course_code.toLowerCase().includes(q)||s.course_title.toLowerCase().includes(q)||
    (s.lecturer_name||'').toLowerCase().includes(q)||(s.schedule||'').toLowerCase().includes(q)||
-   (s.classroom||'').toLowerCase().includes(q)));
+   (s.classroom||'').toLowerCase().includes(q)||(s.online_classroom||'').toLowerCase().includes(q)||
+   (s.delivery_mode||'').toLowerCase().includes(q)));
  },[state,termId,query]);
  const selectedSections=(state?.sections||[]).filter(s=>addIds.includes(s.id));
 
@@ -109,15 +110,19 @@ export const StudentCourseBoard:React.FC<{currentUser:UserProfile;onOpenStudentW
     const seats=Math.max(0,Number(section.capacity)-Number(section.enrolled_count||0));
     const full=seats<=0;
     const programEligible=Number(section.program_eligible)===1;
+    const mode=section.delivery_mode||'classroom';
+    const modeLabel=mode==='classroom'?'Classroom':mode==='online'?'Online':'Hybrid';
     return <article key={section.id} className="rounded-xl border border-[#E6DCE7] p-4">
      <div className="flex flex-wrap items-start justify-between gap-2"><div>
       <p className="font-mono text-xs font-bold text-[#8B5C1C]">{section.course_code} · Section {section.code}</p>
       <h4 className="mt-1 text-lg font-bold">{section.course_title}</h4></div>
-      <span className="rounded-full bg-[#F4EDF4] px-3 py-1 text-xs font-bold text-[#4A1249]">{section.credits} credits</span></div>
+      <div className="flex flex-wrap gap-2"><span className="rounded-full bg-[#FFF6E2] px-3 py-1 text-xs font-bold text-[#8B5C1C]">{modeLabel}</span>
+       <span className="rounded-full bg-[#F4EDF4] px-3 py-1 text-xs font-bold text-[#4A1249]">{section.credits} credits</span></div></div>
      <div className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
       <p className="flex items-center gap-2"><Clock className="h-4 w-4 text-[#8B5C1C]"/>{section.schedule||'Schedule to be announced'}</p>
-      <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-[#8B5C1C]"/>{section.location||'Location / delivery mode TBA'}</p>
-      <p className="flex items-center gap-2"><Building2 className="h-4 w-4 text-[#8B5C1C]"/>{section.classroom?('Classroom '+section.classroom):'Classroom TBA'}</p>
+      {mode!=='online'&&<p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-[#8B5C1C]"/>{section.location||'Campus / location TBA'}</p>}
+      {mode!=='online'&&<p className="flex items-center gap-2"><Building2 className="h-4 w-4 text-[#8B5C1C]"/>{section.classroom?('Classroom '+section.classroom):'Classroom TBA'}</p>}
+      {mode!=='classroom'&&<p className="flex items-center gap-2"><Monitor className="h-4 w-4 text-[#8B5C1C]"/>{section.online_classroom||'Online classroom TBA'}</p>}
       <p className="flex items-center gap-2"><User className="h-4 w-4 text-[#8B5C1C]"/>{section.lecturer_name||'Faculty assignment pending'}</p>
       <p className="flex items-center gap-2"><Users className="h-4 w-4 text-[#8B5C1C]"/>{seats} of {section.capacity} seats available</p>
      </div>
