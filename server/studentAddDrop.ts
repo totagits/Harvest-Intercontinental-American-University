@@ -145,7 +145,7 @@ export function installStudentAddDrop(app:Express,store:Operations){
    const student=studentFor(res);
    if(!student)return res.json({linked:false,terms:[],sections:[],registrations:[],requests:[]});
    const terms=store.all("SELECT id,title,status,max_credits,start_date,end_date FROM terms WHERE status='open' ORDER BY start_date");
-   const sections=store.all(`SELECT s.id,s.term_id,s.code,s.capacity,s.location,s.schedule,s.lecturer_id,
+   const sections=store.all(`SELECT s.id,s.term_id,s.code,s.capacity,s.location,s.classroom,s.schedule,s.lecturer_id,
       c.id AS course_id,c.code AS course_code,c.title AS course_title,c.credits,
       u.name AS lecturer_name,
       (SELECT COUNT(*) FROM registrations r WHERE r.section_id=s.id AND r.status='enrolled') AS enrolled_count,
@@ -154,7 +154,7 @@ export function installStudentAddDrop(app:Express,store:Operations){
     LEFT JOIN users u ON u.id=s.lecturer_id
     WHERE t.status='open' ORDER BY c.code,s.code`,student.program_id);
    const registrations=store.all(`SELECT r.id AS registration_id,r.section_id,s.term_id,c.id AS course_id,
-      c.code AS course_code,c.title AS course_title,c.credits,s.schedule,s.location,u.name AS lecturer_name
+      c.code AS course_code,c.title AS course_title,c.credits,s.schedule,s.location,s.classroom,u.name AS lecturer_name
     FROM registrations r JOIN sections s ON s.id=r.section_id JOIN courses c ON c.id=s.course_id
     LEFT JOIN users u ON u.id=s.lecturer_id
     WHERE r.student_id=? AND r.status='enrolled' ORDER BY c.code`,student.id);
