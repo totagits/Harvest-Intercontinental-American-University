@@ -6,7 +6,7 @@ import {actorOf} from './identity';
 const uuid=/^[a-f0-9-]{36}$/i;
 const kinds=new Set(['scholarship','financial_aid','tuition_waiver']);
 const now=()=>new Date().toISOString();
-// Request-only workflow; does not issue awards, change tuition, or post credits.
+// Multi-stage workflow: student request -> Registrar recommendation -> independent Finance review -> explicit award/waiver credit posting.
 export function installStudentAssistance(app:Express,store:Operations){
  const role=(res:any)=>actorOf(res)?.role||'';
  const registrar=(res:any)=>['registrar','super_admin'].includes(role(res));
@@ -35,16 +35,21 @@ export function installStudentAssistance(app:Express,store:Operations){
    return res.json({linked:true,requests,terms});
   }
   if(!registrar(res)&&!finance(res))return res.sendStatus(403);
-  const queue=(registrar(res)?
-    store.all(`SELECT a.*,s.student_number,s.full_name,t.title AS term_title
+  const queue=(actor.role==='super_admin'
+    ?store.all(`SELECT a.*,s.student_number,s.full_name,t.title AS term_title
       FROM student_assistance_requests a JOIN students s ON s.id=a.student_id
-      JOIN terms t ON t.id=a.term_id WHERE a.status='submitted'
-      ORDER BY a.created_at LIMIT 100`):
-    store.all(`SELECT a.*,s.student_number,s.full_name,t.title AS term_title
-      FROM student_assistance_requests a JOIN students s ON s.id=a.student_id
-      JOIN terms t ON t.id=a.term_id WHERE a.status IN('recommended','finance_reviewed')
-      ORDER BY a.created_at LIMIT 100`)).map(decorate);
-  return res.json({requests:queue,queue:registrar(res)?'registrar':'finance'});
+      JOIN terms t ON t.id=a.term_id WHERE a.status IN('submitted','recommended','finance_reviewed')
+      ORDER BY a.created_at LIMIT 100`)
+    :registrar(res)
+      ?store.all(`SELECT a.*,s.student_number,s.full_name,t.title AS term_title
+        FROM student_assistance_requests a JOIN students s ON s.id=a.student_id
+        JOIN terms t ON t.id=a.term_id WHERE a.status='submitted'
+        ORDER BY a.created_at LIMIT 100`)
+      :store.all(`SELECT a.*,s.student_number,s.full_name,t.title AS term_title
+        FROM student_assistance_requests a JOIN students s ON s.id=a.student_id
+        JOIN terms t ON t.id=a.term_id WHERE a.status IN('recommended','finance_reviewed')
+        ORDER BY a.created_at LIMIT 100`)).map(decorate);
+  return res.json({requests:queue,queue:actor.role==='super_admin'?'combined':registrar(res)?'registrar':'finance'});
  });
  app.post('/api/student/assistance',(req,res)=>{
   const actor=actorOf(res);
