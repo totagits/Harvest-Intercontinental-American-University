@@ -28,8 +28,8 @@ test('staging Add/Drop can add a section, bill it, then drop it with a full earl
  store.run('INSERT INTO courses(id,code,title,credits,fee_cents,created_at) VALUES(?,?,?,?,?,?)',
   courseId,'STG-101','University Foundations',3,15000,stamp);
  store.run('INSERT INTO program_requirements(program_id,course_id) VALUES(?,?)',programId,courseId);
- store.run('INSERT INTO sections(id,course_id,term_id,lecturer_id,code,capacity,location,schedule,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
-  sectionId,courseId,termId,adminId,'A',30,'Hybrid','TBA',stamp);
+ store.run("INSERT INTO sections(id,course_id,term_id,lecturer_id,code,capacity,delivery_mode,location,classroom,online_classroom,schedule,created_at) VALUES(?,?,?,?,?,?,'hybrid','HIAU Staging','Room 101','HIAU Online Classroom — STG-101','Mon/Wed 09:00–10:30',?)",
+  sectionId,courseId,termId,adminId,'A',30,stamp);
  store.run("INSERT INTO applications(id,number,full_name,email,phone,program_id,status,decision_note,created_at,updated_at) VALUES(?,?,?,?,?,?,'admitted','STAGING TEST',?,?)",
   applicationId,'APP-STG','MICHAEL GWOAH','michael.staging@example.com','',programId,stamp,stamp);
  store.run("INSERT INTO students(id,user_id,application_id,student_number,full_name,email,program_id,admitted_term_id,status,financial_hold,created_at) VALUES(?,?,?,?,?,?,?,?, 'active',0,?)",
@@ -46,14 +46,14 @@ test('staging Add/Drop can add a section, bill it, then drop it with a full earl
  const addr=server.address();if(!addr||typeof addr==='string')throw Error('No test server');
  const base='http://127.0.0.1:'+addr.port;
  try{
-  const bootstrap=await fetch(base+'/api/student/add-drop',{headers:{host:'hiau-staging.totag.network'}});
+  const bootstrap=await fetch(base+'/api/student/add-drop',{headers:{'x-forwarded-host':'hiau-staging.totag.network'}});
   assert.equal(bootstrap.status,200);
   const stg104=store.one(`SELECT s.id,c.id AS course_id FROM sections s JOIN courses c ON c.id=s.course_id
     WHERE c.code='STG-104' AND s.term_id=?`,termId);
   assert.ok(stg104);
 
   const addResponse=await fetch(base+'/api/student/add-drop',{
-   method:'POST',headers:{'content-type':'application/json',host:'hiau-staging.totag.network'},
+   method:'POST',headers:{'content-type':'application/json','x-forwarded-host':'hiau-staging.totag.network'},
    body:JSON.stringify({termId,addSectionIds:[stg104.id],dropRegistrationIds:[],reason:'Add STG-104 for staging Add/Drop acceptance testing.'}),
   });
   const addRequest:any=await addResponse.json();
@@ -85,7 +85,7 @@ test('staging Add/Drop can add a section, bill it, then drop it with a full earl
 
   actor={id:studentUserId,email:'michael.staging@example.com',name:'MICHAEL GWOAH',role:'student',title:''};
   const dropResponse=await fetch(base+'/api/student/add-drop',{
-   method:'POST',headers:{'content-type':'application/json',host:'hiau-staging.totag.network'},
+   method:'POST',headers:{'content-type':'application/json','x-forwarded-host':'hiau-staging.totag.network'},
    body:JSON.stringify({termId,addSectionIds:[],dropRegistrationIds:[addedReg.id],reason:'Drop STG-104 to verify the early-term tuition adjustment workflow.'}),
   });
   const dropRequest:any=await dropResponse.json();
