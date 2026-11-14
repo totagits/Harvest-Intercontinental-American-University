@@ -1584,7 +1584,11 @@ export class Operations {
             throw new WorkflowError('Unexpected snapshot columns.');
           this.run(
             `INSERT INTO ${name} (${columns.join(',')}) VALUES (${columns.map(() => '?').join(',')})`,
-            ...columns.map((key) => row[key] ?? null),
+            ...columns.map((key) => {
+              if (name === 'payments' && key === 'external_reference' && row[key] == null)
+                return '';
+              return row[key] ?? null;
+            }),
           );
         }
       }
