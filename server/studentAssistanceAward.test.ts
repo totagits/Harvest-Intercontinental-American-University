@@ -11,12 +11,13 @@ import {installStudentAssistance} from './studentAssistance';
 test('finance-reviewed assistance posts one audited invoice credit and reduces balances',async()=>{
  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'hiau-assistance-award-'));
  const store=new Operations(directory);
- const adminId=crypto.randomUUID(),studentUserId=crypto.randomUUID();
+ const adminId=crypto.randomUUID(),registrarId=crypto.randomUUID(),studentUserId=crypto.randomUUID();
  const programId=crypto.randomUUID(),termId=crypto.randomUUID(),courseId=crypto.randomUUID(),sectionId=crypto.randomUUID();
  const applicationId=crypto.randomUUID(),studentId=crypto.randomUUID(),registrationId=crypto.randomUUID(),invoiceId=crypto.randomUUID(),requestId=crypto.randomUUID();
  const stamp=new Date().toISOString();
  store.saveUsers([
   {id:adminId,name:'Finance Administrator',email:'finance@hiau.example',role:'super_admin',title:'',department:''},
+  {id:registrarId,name:'Registrar Reviewer',email:'registrar@hiau.example',role:'registrar',title:'',department:''},
   {id:studentUserId,name:'MICHAEL GWOAH',email:'michael.staging@example.com',role:'student',title:'',department:''},
  ]);
  store.run('INSERT INTO programs(id,code,title,required_credits,created_at) VALUES(?,?,?,?,?)',programId,'STG','Staging',120,stamp);
@@ -36,7 +37,7 @@ test('finance-reviewed assistance posts one audited invoice credit and reduces b
   (id,student_id,term_id,kind,requested_cents,reason,status,registrar_note,finance_note,registrar_id,finance_id,created_at,updated_at)
   VALUES(?,?,?,?,?,?, 'finance_reviewed',?,?,?,?,?,?)`,
   requestId,studentId,termId,'scholarship',20000,'Staging scholarship acceptance request',
-  'Recommended for test','Finance review complete',crypto.randomUUID(),adminId,stamp,stamp);
+  'Recommended for test','Finance review complete',registrarId,adminId,stamp,stamp);
 
  const app=express();
  app.use(express.json());

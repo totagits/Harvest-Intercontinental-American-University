@@ -110,7 +110,10 @@ export function installWorkspaces(app: Express, store: Operations) {
       permissions: permission,
       users,
       programs: store.all('SELECT * FROM programs ORDER BY code'),
-      terms: store.all('SELECT * FROM terms ORDER BY start_date DESC'),
+      terms: store.all('SELECT * FROM terms ORDER BY start_date DESC').map((term:any)=>({
+        ...term,
+        registration_close_date: store.one('SELECT close_date FROM term_registration_deadlines WHERE term_id=?',term.id)?.close_date || term.end_date,
+      })),
       courses: store.all('SELECT * FROM courses ORDER BY code'),
       prerequisites: store.all('SELECT * FROM course_prerequisites'),
       requirements: store.all('SELECT * FROM program_requirements'),
@@ -245,7 +248,7 @@ export function installWorkspaces(app: Express, store: Operations) {
     }
   });
   const stagingRequest=(req:any)=>{
-    const requestHost=String(req.hostname||req.get?.('host')||'').toLowerCase().split(':')[0];
+    const requestHost=String(req.get?.('x-forwarded-host')||req.hostname||req.get?.('host')||'').toLowerCase().split(',')[0].trim().split(':')[0];
     let configuredHost='';
     try{configuredHost=new URL(process.env.APP_URL||'https://invalid.local').hostname.toLowerCase();}catch{}
     return requestHost==='hiau-staging.totag.network'||configuredHost==='hiau-staging.totag.network';
@@ -254,7 +257,7 @@ export function installWorkspaces(app: Express, store: Operations) {
     const actor=actorOf(res);
     if(!actor||actor.role!=='student')
       return res.status(403).json({error:'Student authorization required.'});
-    const requestHost=String(req.hostname||req.get?.('host')||'').toLowerCase().split(':')[0];
+    const requestHost=String(req.get?.('x-forwarded-host')||req.hostname||req.get?.('host')||'').toLowerCase().split(',')[0].trim().split(':')[0];
     if(requestHost!=='hiau-staging.totag.network')
       return res.status(404).json({error:'Staging acceptance utility is unavailable.'});
     if(!/^\s*MICHAEL\s+GWOAH\s*$/i.test(actor.name||''))

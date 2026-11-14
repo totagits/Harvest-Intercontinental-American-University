@@ -26,7 +26,7 @@ async function putCart(body:object){
 }
 type StudentState={
  linked:boolean;
- terms:{id:string;title:string;max_credits:number}[];
+ terms:{id:string;title:string;max_credits:number;registration_close_date:string;registration_closed?:boolean}[];
  sections:{id:string;term_id:string;course_id:string;course_code:string;course_title:string;credits:number;schedule?:string;delivery_mode?:'classroom'|'online'|'hybrid';location?:string;classroom?:string;online_classroom?:string;has_online_classroom?:number}[];
  registrations:{registration_id:string;section_id:string;term_id:string;course_id:string;course_code:string;course_title:string;credits:number;schedule?:string;delivery_mode?:'classroom'|'online'|'hybrid';location?:string;classroom?:string;online_classroom?:string}[];
  requests:any[];
@@ -55,6 +55,9 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
  const [data,setData]=useState<any>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
  const [termId,setTermId]=useState(''),[adds,setAdds]=useState<string[]>([]),[drops,setDrops]=useState<string[]>([]),[reason,setReason]=useState('');
  const [notes,setNotes]=useState<Record<string,string>>({}),[dueDates,setDueDates]=useState<Record<string,string>>({});
+ const [refundNotes,setRefundNotes]=useState<Record<string,string>>({});
+ const [refundMethods,setRefundMethods]=useState<Record<string,'cash'|'bank'|'mobile_money'>>({});
+ const [refundExternalRefs,setRefundExternalRefs]=useState<Record<string,string>>({});
 
  const endpoint=isFinance?'/api/student/add-drop/finance':'/api/student/add-drop';
  const load=useCallback(async()=>{
@@ -81,6 +84,8 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
  },[isFinance,load]);
 
  const student=data as StudentState|null;
+ const activeTerm=isStudent?student?.terms?.find(t=>t.id===termId):null;
+ const registrationClosed=!!activeTerm?.registration_closed;
  const currentRegs=useMemo(()=>isStudent?(student?.registrations||[]).filter(r=>r.term_id===termId):[],[isStudent,student,termId]);
  const selectedAdditions=useMemo(()=>isStudent?(student?.sections||[]).filter(s=>s.term_id===termId&&adds.includes(s.id)):[],[isStudent,student,termId,adds]);
  const currentCredits=currentRegs.reduce((n,r)=>n+Number(r.credits||0),0);
@@ -93,7 +98,7 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
   await putCart({termId,addSectionIds:nextAdds,dropRegistrationIds:nextDrops,reason:nextReason});
  };
  const toggleDrop=async(registrationId:string,checked:boolean)=>{
-  if(busy)return;
+  if(busy||(registrationClosed&&checked))return;
   const next=checked?Array.from(new Set([...drops,registrationId])):drops.filter(id=>id!==registrationId);
   setBusy(true);setError('');setMessage('');
   try{await saveStudentCart(adds,next,reason);setDrops(next);
@@ -111,7 +116,7 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
  };
 
  const submit=async()=>{
-  if(busy)return;setBusy(true);setError('');setMessage('');
+  if(busy||registrationClosed)return;setBusy(true);setError('');setMessage('');
   try{
    await saveStudentCart(adds,drops,reason);
    const r=await post('/api/student/add-drop',{termId,addSectionIds:adds,dropRegistrationIds:drops,reason});
@@ -134,6 +139,24 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
    await load();
   }catch(e){setError(e instanceof Error?e.message:'Add/Drop could not be committed.');}finally{setBusy(false);}
  };
+ const reviewRefund=async(id:string,decision:'approved'|'cancelled')=>{
+  if(busy)return;setBusy(true);setError('');setMessage('');
+  try{
+   await post('/api/student/add-drop/refunds/'+id+'/review',{decision,note:refundNotes[id]||''});
+   setMessage(decision==='approved'?'Student refund approved. An independent Finance account must record the payout.':'Student refund cancelled and audited.');
+   await load();window.dispatchEvent(new CustomEvent('hiau:finance-data-changed',{detail:{source:'refund-reviewed',refundId:id}}));
+  }catch(e){setError(e instanceof Error?e.message:'Refund review could not be saved.');}finally{setBusy(false);}
+ };
+ const payRefund=async(id:string)=>{
+  if(busy)return;setBusy(true);setError('');setMessage('');
+  try{
+   const method=refundMethods[id]||'cash';
+   const result=await post('/api/student/add-drop/refunds/'+id+'/pay',{method,externalReference:refundExternalRefs[id]||''});
+   setMessage('Refund '+result.reference+' paid, audited, and applied to the student account.');
+   await load();window.dispatchEvent(new CustomEvent('hiau:finance-data-changed',{detail:{source:'refund-paid',refundId:id}}));
+  }catch(e){setError(e instanceof Error?e.message:'Refund payout could not be recorded.');}finally{setBusy(false);}
+ };
+
  const postInvoice=async(item:any)=>{
   const due=dueDates[item.id]||'';if(!due){setError('Choose an invoice due date.');return;}
   setBusy(true);setError('');setMessage('');
@@ -164,7 +187,10 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
      const next=e.target.value;setTermId(next);
      const cart=student.carts?.find(item=>item.term_id===next);setAdds(cart?.addSectionIds||[]);setDrops(cart?.dropRegistrationIds||[]);setReason(cart?.reason||'');
     }} className="mt-1 block w-full rounded-lg border border-[#D8C8DC] p-2.5">
-    {student.terms.map(t=><option key={t.id} value={t.id}>{t.title} — limit {t.max_credits} credits</option>)}</select></label></div>
+    {student.terms.map(t=><option key={t.id} value={t.id}>{t.title} — limit {t.max_credits} credits{t.registration_closed?' — registration closed':''}</option>)}</select></label>
+    {activeTerm&&<p className={"mt-2 rounded border p-2 text-xs "+(registrationClosed?'border-rose-200 bg-rose-50 text-rose-800':'border-[#E5D3A6] bg-[#FFF9EA] text-[#6F4F16]')}>
+     Registration / Add-Drop closes: <strong>{activeTerm.registration_close_date}</strong>{registrationClosed?' — deadline passed; no new Add/Drop request can be submitted.':''}
+    </p>}</div>
 
    <div className="mt-5 grid gap-5 lg:grid-cols-2">
     <div className="rounded-xl border border-[#E6DCE7] p-4"><div className="flex items-center justify-between gap-3">
@@ -181,7 +207,7 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
     <div className="rounded-xl border border-[#E6DCE7] p-4"><h3 className="flex items-center gap-2 font-bold text-[#4A1249]"><ArrowDownCircle className="h-5 w-5"/>Drop from My Courses</h3>
      <p className="mt-1 text-xs text-slate-600">Only courses already in your official current enrollment can be selected for drop.</p>
      <div className="mt-3 space-y-2">{currentRegs.length?currentRegs.map(r=><label key={r.registration_id} className="flex gap-3 rounded-lg bg-[#FAF8FB] p-3">
-      <input type="checkbox" checked={drops.includes(r.registration_id)} disabled={busy} onChange={e=>void toggleDrop(r.registration_id,e.target.checked)}/>
+      <input type="checkbox" checked={drops.includes(r.registration_id)} disabled={busy||(registrationClosed&&!drops.includes(r.registration_id))} onChange={e=>void toggleDrop(r.registration_id,e.target.checked)}/>
       <span><strong>{r.course_code}</strong> — {r.course_title}<br/><span className="text-xs text-slate-600">{r.credits} credits · {r.schedule||'Schedule pending'} · {sectionAccess(r)}</span></span></label>):<p className="text-sm text-slate-600">No active registrations in this term.</p>}</div>
     </div>
    </div>
@@ -199,7 +225,7 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
      </span>
      <span className="text-slate-500">{reason.length}/1000 characters</span>
     </div>
-    <button disabled={busy||(!adds.length&&!drops.length)||reason.trim().length<20} onClick={()=>void submit()} title={reason.trim().length<20?'Enter at least 20 characters in the reason field before submitting.':undefined} className="hiau-finance-primary mt-3 rounded-lg px-4 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50">Submit Add/Drop request to Registrar</button>
+    <button disabled={busy||registrationClosed||(!adds.length&&!drops.length)||reason.trim().length<20} onClick={()=>void submit()} title={reason.trim().length<20?'Enter at least 20 characters in the reason field before submitting.':undefined} className="hiau-finance-primary mt-3 rounded-lg px-4 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50">Submit Add/Drop request to Registrar</button>
    </div>
 
    <div className="mt-6"><h3 className="font-bold">My Add/Drop requests</h3>{student.requests?.length?<div className="mt-2 space-y-2">{student.requests.map((r:any)=><div key={r.id} className="rounded-lg border border-[#E6DCE7] p-3 text-sm">
@@ -239,6 +265,8 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
 
  if(isFinance){
   const items=data?.items||[];
+  const refunds=data?.refunds||[];
+  const canRefund=['super_admin','bursar'].includes(currentUser.role);
   return <section className="rounded-2xl border border-[#DED1E3] bg-white p-5 text-[#35103B] shadow-sm">
    <h2 className="text-xl font-bold">Add / Drop — Finance Adjustment</h2><p className="mt-1 text-sm text-slate-700">Review committed registration changes. Drop credits are already posted according to the term refund window; added registrations remain unbilled until Finance posts them.</p>
    {error&&<p className="mt-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm">{error}</p>}{message&&<p className="mt-3 rounded border border-[#D8C8DC] bg-[#FAF7FB] p-3 text-sm">{message}</p>}
@@ -250,6 +278,40 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
      <button disabled={busy||!dueDates[item.id]} onClick={()=>void postInvoice(item)} className="hiau-finance-primary mt-3 rounded px-4 py-2 text-sm font-semibold">Post Add/Drop tuition invoice</button>
     </div>:<p className="mt-3 text-sm font-medium text-[#4A1249]">No unbilled added registrations remain.</p>}
    </article>)}</div>}
+   <div className="mt-6 border-t border-[#E6DCE7] pt-5">
+    <h3 className="text-lg font-bold">Student Refund Queue</h3>
+    <p className="mt-1 text-sm text-slate-700">Refunds are created only when a committed drop produces a refundable overpayment from actual reconciled student funds. Credits without an overpayment do not create cash refunds.</p>
+    {!refunds.length?<p className="mt-3 rounded border border-dashed border-[#D8C8DC] p-4 text-sm text-slate-600">No student refunds are awaiting Finance action.</p>:
+     <div className="mt-3 space-y-3">{refunds.map((refund:any)=><article key={refund.id} className="rounded-xl border border-[#E6DCE7] p-4">
+      <h4 className="font-bold">{refund.student_number} — {refund.full_name}</h4>
+      <p className="mt-1 text-sm">{refund.course_code} — {refund.course_title} · Invoice {refund.invoice_number}</p>
+      <p className="mt-2 text-sm">Refund due: <strong>{money(refund.amount_cents)}</strong> · Status: <strong>{statusLabel(refund.status)}</strong></p>
+      <p className="mt-1 text-xs text-slate-600">{refund.reason}</p>
+      {refund.status==='pending'&&canRefund&&<>
+       <textarea rows={2} value={refundNotes[refund.id]||''} onChange={e=>setRefundNotes(v=>({...v,[refund.id]:e.target.value}))}
+        placeholder="Finance refund review note (minimum 10 characters)" className="mt-3 w-full rounded-lg border border-[#D8C8DC] p-2.5 text-sm"/>
+       <div className="mt-2 flex flex-wrap gap-2">
+        <button disabled={busy||(refundNotes[refund.id]||'').trim().length<10} onClick={()=>void reviewRefund(refund.id,'approved')} className="hiau-finance-primary rounded px-3 py-2 text-sm font-semibold">Approve refund</button>
+        <button disabled={busy||(refundNotes[refund.id]||'').trim().length<10} onClick={()=>void reviewRefund(refund.id,'cancelled')} className="rounded border border-[#4A1249] px-3 py-2 text-sm">Cancel refund</button>
+       </div>
+      </>}
+      {refund.status==='approved'&&canRefund&&<div className="mt-3 rounded-lg bg-[#FAF7FB] p-3">
+       <p className="text-sm font-semibold">Record approved refund payout</p>
+       <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <label className="text-xs font-semibold">Refund method<select value={refundMethods[refund.id]||'cash'} onChange={e=>setRefundMethods(v=>({...v,[refund.id]:e.target.value as 'cash'|'bank'|'mobile_money'}))} className="mt-1 w-full rounded border border-[#D8C8DC] bg-white p-2">
+         <option value="cash">Cash</option><option value="bank">Bank</option><option value="mobile_money">Mobile Money</option>
+        </select></label>
+        <label className="text-xs font-semibold">External transaction reference
+         <input value={refundExternalRefs[refund.id]||''} onChange={e=>setRefundExternalRefs(v=>({...v,[refund.id]:e.target.value}))} maxLength={120}
+          placeholder={(refundMethods[refund.id]||'cash')==='cash'?'Optional for cash':'Required bank / Mobile Money reference'} className="mt-1 w-full rounded border border-[#D8C8DC] bg-white p-2"/>
+        </label>
+       </div>
+       <button disabled={busy||refund.approved_by===currentUser.id||((refundMethods[refund.id]||'cash')!=='cash'&&!(refundExternalRefs[refund.id]||'').trim())} onClick={()=>void payRefund(refund.id)}
+        className="hiau-finance-primary mt-3 rounded px-4 py-2 text-sm font-semibold disabled:opacity-50">Record refund paid</button>
+       {refund.approved_by===currentUser.id&&<p className="mt-2 text-xs text-[#6F4F16]">Independent payout required: the account that approved this refund cannot mark it paid.</p>}
+      </div>}
+     </article>)}</div>}
+   </div>
   </section>;
  }
  return null;

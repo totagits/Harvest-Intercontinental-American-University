@@ -8,8 +8,9 @@ type Statement={
  id:string;number:string;term_title:string;amount_cents:number;due_date:string;created_at:string;balance_cents:number;
  lines:{description:string;amount_cents:number}[];
  credits:{amount_cents:number;reason:string;created_at:string}[];
- payments:{id:string;reference:string;amount_cents:number;method:string;received_date:string;status:string;
+ payments:{id:string;reference:string;external_reference?:string;amount_cents:number;method:string;received_date:string;status:string;
   reviewed_at?:string|null;review_note?:string|null;created_at?:string}[];
+ refunds:{id:string;amount_cents:number;status:string;reason:string;method?:string|null;reference?:string|null;external_reference?:string;created_at:string;approved_at?:string|null;paid_at?:string|null}[];
  }[];
 };
 const money=(v:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(v/100);
@@ -40,14 +41,14 @@ export const StudentFinancialStatement:React.FC<{currentUser:UserProfile}>=({cur
    {error&&<p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
    {statement&&!statement.linked&&<p className="mt-3 rounded bg-amber-50 p-3 text-sm">A Registrar-linked admitted student record is required to view your posted financial statement.</p>}
    {statement?.linked&&<div className="mt-4">
-     <p className="text-base font-semibold text-[#4A1249]">Total posted balance: {money(statement.totalBalanceCents)}</p>
+     <p className="text-base font-semibold text-[#4A1249]">{statement.totalBalanceCents<0?'Student credit / refund balance':'Total outstanding balance'}: {money(Math.abs(statement.totalBalanceCents))}</p>
      <p className="mt-1 text-xs text-slate-600">Course plans and unapproved fee estimates are not bills. Recorded payments are not treated as settled until reconciled.</p>
      {statement.invoices.length===0?<p className="mt-4 rounded border border-dashed p-4 text-sm text-slate-600">There are no posted tuition invoices for this student.</p>:
       <div className="mt-4 space-y-4">{statement.invoices.map(invoice=><article key={invoice.id}
         className="rounded-lg border border-purple-200 p-4 text-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
          <div><h3 className="font-bold">{invoice.number} · {invoice.term_title}</h3>
-          <p className="mt-1 text-slate-600">Due: {universityDate(invoice.due_date)} · Billed: {money(invoice.amount_cents)} · Balance: <strong>{money(invoice.balance_cents)}</strong></p></div>
+          <p className="mt-1 text-slate-600">Due: {universityDate(invoice.due_date)} · Billed: {money(invoice.amount_cents)} · {invoice.balance_cents<0?'Credit / refund due':'Outstanding'}: <strong>{money(Math.abs(invoice.balance_cents))}</strong> · Status: <strong>{invoice.balance_cents<0?'Credit / refund due':invoice.balance_cents===0?'Paid in full':'Payment due'}</strong></p></div>
          <button type="button" disabled={!!documentBusy} onClick={async()=>{
           setDocumentBusy('invoice-'+invoice.id);setError('');
           try{await downloadUniversityInvoice({
@@ -64,6 +65,10 @@ export const StudentFinancialStatement:React.FC<{currentUser:UserProfile}>=({cur
           <span>{line.description}</span><span className="shrink-0">{money(line.amount_cents)}</span>
         </div>)}</div>
         {invoice.credits.map((credit,index)=><p key={index} className="mt-2 text-green-800">Credit: {money(credit.amount_cents)} — {credit.reason}</p>)}
+        {invoice.refunds?.map((refund,index)=><div key={refund.id||index} className="mt-2 rounded border border-[#E5D3A6] bg-[#FFF9EA] px-3 py-2 text-sm text-[#6F4F16]">
+          <strong>Refund {refund.status}</strong> · {money(refund.amount_cents)}{refund.reference?' · '+refund.reference:''}
+          <p className="mt-1 text-xs">{refund.reason}</p>
+        </div>)}
         {invoice.payments.map((payment,index)=><div key={payment.id||index} className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded bg-slate-50 px-3 py-2 text-slate-600">
           <span>Payment {payment.reference} · {money(payment.amount_cents)} · <strong>{payment.status}</strong></span>
           {payment.status==='reconciled'&&<button type="button" disabled={!!documentBusy} onClick={async()=>{

@@ -84,6 +84,7 @@ export const FinancePaymentWorkflow:React.FC<{currentUser:UserProfile}>=({curren
    setMessage('Payment '+result.reference+' recorded. It is not yet settled and requires independent reconciliation.');
    setAmount('');setExternalReference('');setReceivedDate('');setInvoiceId('');
    await load();
+   window.dispatchEvent(new CustomEvent('hiau:finance-data-changed',{detail:{source:'payment-recorded',paymentId:result.id}}));
   }catch(e){setError(e instanceof Error?e.message:'Payment could not be recorded.');}
   finally{setBusy(false);}
  };
@@ -102,6 +103,7 @@ export const FinancePaymentWorkflow:React.FC<{currentUser:UserProfile}>=({curren
     ?'Payment reconciled and audited. The official student balance has been reduced.'
     :'Recorded payment cancelled and audited.');
    await load();
+   window.dispatchEvent(new CustomEvent('hiau:finance-data-changed',{detail:{source:status==='reconciled'?'payment-reconciled':'payment-cancelled',paymentId:payment.id}}));
   }catch(e){setError(e instanceof Error?e.message:'Payment review could not be completed.');}
   finally{setBusy(false);}
  };

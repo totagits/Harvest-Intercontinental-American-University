@@ -1,7 +1,7 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import type {UserProfile} from '../../types';
 
-type Term={id:string;title:string;status:string;max_credits:number};
+type Term={id:string;title:string;status:string;max_credits:number;registration_close_date:string;registration_closed?:boolean};
 type Section={id:string;term_id:string;code:string;course_code:string;course_title:string;credits:number;capacity:number};
 type Plan={id:string;student_id:string;term_id:string;sectionIds:string[];student_note:string;reviewer_note:string;
  status:'draft'|'submitted'|'returned'|'approved'|'rejected';full_name?:string;student_number?:string;term_title?:string;committed_at?:string|null};
@@ -30,7 +30,9 @@ export const StudentCoursePlanning:React.FC<{currentUser:UserProfile}>=({current
  };
  useEffect(()=>{if(isStudent||isRegistrar)void refresh().catch(e=>setError(e.message));},[currentUser.id,currentUser.role]);
  const saved=plans.find(p=>p.term_id===termId);
- const editable=!saved||saved.status==='draft'||saved.status==='returned';
+ const selectedTerm=terms.find(t=>t.id===termId);
+ const registrationClosed=!!selectedTerm?.registration_closed;
+ const editable=(!saved||saved.status==='draft'||saved.status==='returned')&&!registrationClosed;
  useEffect(()=>{
   if(!isStudent||!termId)return;
   const p=plans.find(x=>x.term_id===termId);
@@ -70,10 +72,13 @@ export const StudentCoursePlanning:React.FC<{currentUser:UserProfile}>=({current
     <label className="block text-sm font-semibold">Academic term
      <select value={termId} onChange={e=>setTermId(e.target.value)} className="mt-1 block w-full rounded border p-2">
       <option value="">Select an open academic term</option>
-      {terms.map(t=><option key={t.id} value={t.id}>{t.title} — limit {t.max_credits} credits</option>)}
+      {terms.map(t=><option key={t.id} value={t.id}>{t.title} — limit {t.max_credits} credits{t.registration_closed?' — registration closed':''}</option>)}
      </select>
     </label>
     {!!termId&&<>
+     {selectedTerm&&<p className={"rounded border p-2 text-xs "+(registrationClosed?'border-rose-200 bg-rose-50 text-rose-800':'border-amber-200 bg-amber-50 text-amber-800')}>
+      Registration / Add-Drop closes: <strong>{selectedTerm.registration_close_date}</strong>{registrationClosed?' — deadline passed.':''}
+     </p>}
      <div className="grid gap-2 sm:grid-cols-2">{options.map(section=><label key={section.id}
        className="flex items-start gap-2 rounded border border-purple-100 p-3 text-sm">
         <input type="checkbox" disabled={!editable} checked={chosen.includes(section.id)}

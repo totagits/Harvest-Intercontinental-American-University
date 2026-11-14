@@ -14,7 +14,7 @@ test('student Add/Drop UX separates University Course Board from My Courses',()=
 
  assert.match(board,/University Course Board/);
  assert.match(board,/Add to Add\/Drop Cart/);
- assert.match(board,/Review Add\/Drop Cart/);
+ assert.match(board,/Review & submit Add\/Drop request/);
  assert.match(board,/university-wide/);
  assert.doesNotMatch(board,/registerCourse\(/);
  assert.doesNotMatch(board,/dropCourse\(/);

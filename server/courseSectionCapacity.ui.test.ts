@@ -19,7 +19,7 @@ test('Course section capacity is managed by staff and enforced on the student Co
  assert.match(board,/seats available/);
  assert.match(board,/Section full/);
  assert.match(board,/const full=seats<=0/);
- assert.match(board,/!already&&programEligible&&!full/);
+ assert.match(board,/!already&&setupComplete&&programEligible&&!registrationClosed&&!full/);
 
  assert.match(server,/is full and cannot be added to your Add\/Drop cart/);
  assert.match(operations,/action === 'sectionSettings'/);

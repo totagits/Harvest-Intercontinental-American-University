@@ -12,15 +12,21 @@ test('search only indexes supplied authorized academic rows',()=>{
       {id:'g2',registration_id:'r2',status:'draft',letter:'B',score:80},
     ],
     invoices:[{id:'i1',number:'INV-0001',amount_cents:12000,balance_cents:5000,term_title:'2027 First Term'}],
+    payments:[
+      {id:'p1',invoice_number:'INV-0001',reference:'HIAU-PAY-2027-000001',amount_cents:7000,status:'reconciled',received_date:'2027-01-10',method:'cash'},
+      {id:'p2',invoice_number:'INV-0001',reference:'HIAU-PAY-2027-000002',amount_cents:1000,status:'recorded',received_date:'2027-01-11',method:'cash'},
+    ],
   });
-  assert.equal(entries.length,3);
+  assert.equal(entries.length,4);
   assert.equal(entries.filter(x=>x.kind==='grade').length,1);
   assert.ok(entries.every(x=>!JSON.stringify(x).includes('g2')));
   assert.deepEqual(filterVerifiedStudentItems(entries,'itcb 201','all').map(x=>x.kind),['course','grade']);
   assert.deepEqual(filterVerifiedStudentItems(entries,'inv-0001','invoice').map(x=>x.kind),['invoice']);
+  assert.deepEqual(filterVerifiedStudentItems(entries,'hiau-pay-2027-000001','receipt').map(x=>x.kind),['receipt']);
+  assert.equal(entries.filter(x=>x.kind==='receipt').length,1,'Only reconciled payments become official searchable receipts');
   assert.equal(filterVerifiedStudentItems(entries,'not in permitted records','all').length,0);
 });
 
 test('no synthetic university curriculum or library data is added when student records are empty',()=>{
-  assert.deepEqual(verifiedStudentItems({registrations:[],grades:[],invoices:[]}),[]);
+  assert.deepEqual(verifiedStudentItems({registrations:[],grades:[],invoices:[],payments:[]}),[]);
 });

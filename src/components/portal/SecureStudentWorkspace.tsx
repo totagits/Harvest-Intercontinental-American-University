@@ -120,13 +120,13 @@ export const SecureStudentWorkspace: React.FC<{currentUser: UserProfile}> = ({cu
       {[
         {label:'Course enrollments',value:String(registrations.filter(r=>r.status === 'enrolled').length),Icon:BookOpen},
         {label:'Published grades',value:String(gradesByRegistration.size),Icon:GraduationCap},
-        {label:'Recorded outstanding balance',value:money(student.balance_cents),Icon:CreditCard},
+        {label:Number(student.balance_cents)<0?'Student credit / refund balance':'Recorded outstanding balance',value:money(Math.abs(Number(student.balance_cents)||0)),Icon:CreditCard},
       ].map(({label,value,Icon})=><div key={label} className="rounded-2xl border border-[#e6dce7] bg-white px-5 py-4 shadow-sm">
         <div className="mb-3 flex items-center gap-2 text-sm text-slate-600"><Icon className="h-4 w-4 text-[#4a1249]"/>{label}</div>
         <strong className="text-2xl font-bold text-[#35103b]">{value}</strong>
       </div>)}
     </div>
-    <StudentUnifiedSearchFilter source={{registrations,grades:state?.grades ?? [],invoices}} />
+    <StudentUnifiedSearchFilter source={{registrations,grades:state?.grades ?? [],invoices,payments}} />
     <Panel title="Enrollment and published results">
       {registrations.length === 0 ? <Empty>No courses have been registered against your verified record.</Empty> :
       <div className="overflow-x-auto"><table className="w-full text-left text-sm">
