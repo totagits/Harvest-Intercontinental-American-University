@@ -41,14 +41,14 @@ export const StudentFinancialStatement:React.FC<{currentUser:UserProfile}>=({cur
    {error&&<p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
    {statement&&!statement.linked&&<p className="mt-3 rounded bg-amber-50 p-3 text-sm">A Registrar-linked admitted student record is required to view your posted financial statement.</p>}
    {statement?.linked&&<div className="mt-4">
-     <p className="text-base font-semibold text-[#4A1249]">Total posted balance: {money(statement.totalBalanceCents)}</p>
+     <p className="text-base font-semibold text-[#4A1249]">{statement.totalBalanceCents<0?'Student credit / refund balance':'Total outstanding balance'}: {money(Math.abs(statement.totalBalanceCents))}</p>
      <p className="mt-1 text-xs text-slate-600">Course plans and unapproved fee estimates are not bills. Recorded payments are not treated as settled until reconciled.</p>
      {statement.invoices.length===0?<p className="mt-4 rounded border border-dashed p-4 text-sm text-slate-600">There are no posted tuition invoices for this student.</p>:
       <div className="mt-4 space-y-4">{statement.invoices.map(invoice=><article key={invoice.id}
         className="rounded-lg border border-purple-200 p-4 text-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
          <div><h3 className="font-bold">{invoice.number} · {invoice.term_title}</h3>
-          <p className="mt-1 text-slate-600">Due: {universityDate(invoice.due_date)} · Billed: {money(invoice.amount_cents)} · Outstanding: <strong>{money(invoice.balance_cents)}</strong></p></div>
+          <p className="mt-1 text-slate-600">Due: {universityDate(invoice.due_date)} · Billed: {money(invoice.amount_cents)} · {invoice.balance_cents<0?'Credit / refund due':'Outstanding'}: <strong>{money(Math.abs(invoice.balance_cents))}</strong></p></div>
          <button type="button" disabled={!!documentBusy} onClick={async()=>{
           setDocumentBusy('invoice-'+invoice.id);setError('');
           try{await downloadUniversityInvoice({
