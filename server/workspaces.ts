@@ -112,7 +112,7 @@ export function installWorkspaces(app: Express, store: Operations) {
       programs: store.all('SELECT * FROM programs ORDER BY code'),
       terms: store.all('SELECT * FROM terms ORDER BY start_date DESC').map((term:any)=>({
         ...term,
-        registration_close_date: store.one('SELECT value FROM settings WHERE key=?','term_registration_close_'+term.id)?.value || term.end_date,
+        registration_close_date: store.one('SELECT close_date FROM term_registration_deadlines WHERE term_id=?',term.id)?.close_date || term.end_date,
       })),
       courses: store.all('SELECT * FROM courses ORDER BY code'),
       prerequisites: store.all('SELECT * FROM course_prerequisites'),
