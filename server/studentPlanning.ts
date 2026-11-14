@@ -218,7 +218,9 @@ export function installStudentPlanning(app:Express,store:Operations){
       const payments=store.all(`SELECT p.id,p.reference,p.external_reference,p.amount_cents,p.method,p.received_date,
         p.status,p.reviewed_at,p.review_note,p.created_at
         FROM payments p WHERE p.invoice_id=? ORDER BY p.received_date,p.created_at`,invoice.id);
-      return {...invoice,lines,credits,payments,balance_cents:store.invoiceBalance(invoice.id)};
+      const refunds=store.all(`SELECT id,amount_cents,status,reason,method,reference,external_reference,created_at,approved_at,paid_at
+        FROM student_refunds WHERE invoice_id=? ORDER BY created_at`,invoice.id);
+      return {...invoice,lines,credits,payments,refunds,balance_cents:store.invoiceBalance(invoice.id)};
     });
     return res.json({linked:true,studentNumber:student.student_number,studentName:student.full_name,currency:'USD',
       invoices,totalBalanceCents:store.balance(student.id)});
