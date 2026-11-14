@@ -1,7 +1,7 @@
 type FinanceLine={description:string;amount_cents:number};
 type FinanceCredit={amount_cents:number;reason:string;created_at:string};
 type FinancePayment={
- id:string;reference:string;amount_cents:number;method:string;received_date:string;status:string;
+ id:string;reference:string;external_reference?:string;amount_cents:number;method:string;received_date:string;status:string;
  reviewed_at?:string|null;review_note?:string|null;
 };
 type FinanceInvoice={
@@ -140,9 +140,13 @@ export async function downloadUniversityReceipt(input:{
  labelValue(doc,'Payment date',universityDate(payment.received_date),18,y);
  labelValue(doc,'Payment method',payment.method.replaceAll('_',' '),106,y);
  y+=18;
- labelValue(doc,'Receipt / bank reference',payment.reference,18,y);
+ labelValue(doc,'HIAU payment reference',payment.reference,18,y);
  labelValue(doc,'Verification status','RECONCILED / VERIFIED',106,y);
- y+=22;
+ y+=18;
+ if(payment.external_reference){
+  labelValue(doc,'External transaction reference',payment.external_reference,18,y,78);
+  y+=14;
+ }else y+=4;
 
  doc.setFillColor(250,248,251);doc.setDrawColor(195,154,83);doc.setLineWidth(0.6);doc.roundedRect(18,y,174,42,2,2,'FD');
  doc.setTextColor(100,116,139);doc.setFont('helvetica','bold');doc.setFontSize(8);doc.text('AMOUNT RECEIVED',26,y+12);
