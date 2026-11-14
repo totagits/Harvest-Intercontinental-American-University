@@ -140,6 +140,14 @@ export function installWorkspaces(app: Express, store: Operations) {
             ...invoiceIds,
           )
         : [],
+      assistanceAwards: financeAllowed
+        ? store.all(
+            `SELECT a.*,i.number AS invoice_number FROM student_assistance_awards a
+              JOIN invoices i ON i.id=a.invoice_id
+              WHERE a.invoice_id IN(${invoiceMarks}) ORDER BY a.created_at`,
+            ...invoiceIds,
+          )
+        : [],
       gradeSchemes: permission.registrar
         ? store.all('SELECT * FROM grade_schemes ORDER BY approved_at DESC')
         : [],
