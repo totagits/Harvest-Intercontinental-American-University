@@ -9,7 +9,7 @@ type FinanceRefund={
 };
 type FinanceInvoice={
  id:string;number:string;term_title:string;amount_cents:number;due_date:string;created_at:string;balance_cents:number;
- lines:FinanceLine[];credits:FinanceCredit[];payments:FinancePayment[];refunds:FinanceRefund[];
+ lines:FinanceLine[];credits:FinanceCredit[];payments:FinancePayment[];refunds?:FinanceRefund[];
 };
 
 const money=(cents:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(cents/100);
