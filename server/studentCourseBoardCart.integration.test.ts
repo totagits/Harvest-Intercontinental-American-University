@@ -25,8 +25,8 @@ test('Course Board cart persists across student views and clears after Add/Drop 
  store.run('INSERT INTO courses(id,code,title,credits,fee_cents,created_at) VALUES(?,?,?,?,?,?)',
   courseId,'STG-101','University Foundations',3,15000,stamp);
  store.run('INSERT INTO program_requirements(program_id,course_id) VALUES(?,?)',programId,courseId);
- store.run('INSERT INTO sections(id,course_id,term_id,lecturer_id,code,capacity,location,schedule,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
-  sectionId,courseId,termId,adminId,'A',30,'Main','Mon 09:00',stamp);
+ store.run("INSERT INTO sections(id,course_id,term_id,lecturer_id,code,capacity,delivery_mode,location,classroom,online_classroom,schedule,created_at) VALUES(?,?,?,?,?,?,'hybrid','HIAU Staging','Room 101','HIAU Online Classroom — STG-101','Mon/Wed 09:00–10:30',?)",
+  sectionId,courseId,termId,adminId,'A',30,stamp);
  store.run("INSERT INTO applications(id,number,full_name,email,phone,program_id,status,decision_note,created_at,updated_at) VALUES(?,?,?,?,?,?,'admitted','test',?,?)",
   applicationId,'APP-1','MICHAEL GWOAH','student@example.test','',programId,stamp,stamp);
  store.run("INSERT INTO students(id,user_id,application_id,student_number,full_name,email,program_id,admitted_term_id,status,financial_hold,created_at) VALUES(?,?,?,?,?,?,?,?, 'active',0,?)",
@@ -42,31 +42,31 @@ test('Course Board cart persists across student views and clears after Add/Drop 
  const addr=server.address();if(!addr||typeof addr==='string')throw Error('No test server');
  const base='http://127.0.0.1:'+addr.port;
  try{
-  let r=await fetch(base+'/api/student/add-drop',{headers:{host:'hiau-staging.totag.network'}});
+  let r=await fetch(base+'/api/student/add-drop',{headers:{'x-forwarded-host':'hiau-staging.totag.network'}});
   assert.equal(r.status,200);
   const initial:any=await r.json();
   const stg104=initial.sections.find((s:any)=>s.course_code==='STG-104');
   assert.ok(stg104,'staging Course Board section should be available');
 
   r=await fetch(base+'/api/student/add-drop/cart',{
-   method:'PUT',headers:{'content-type':'application/json',host:'hiau-staging.totag.network'},
+   method:'PUT',headers:{'content-type':'application/json','x-forwarded-host':'hiau-staging.totag.network'},
    body:JSON.stringify({termId,addSectionIds:[stg104.id],dropRegistrationIds:[],reason:'Course Board cart acceptance testing reason.'}),
   });
   assert.equal(r.status,200);
 
-  r=await fetch(base+'/api/student/add-drop',{headers:{host:'hiau-staging.totag.network'}});
+  r=await fetch(base+'/api/student/add-drop',{headers:{'x-forwarded-host':'hiau-staging.totag.network'}});
   const withCart:any=await r.json();
   assert.equal(withCart.carts.length,1);
   assert.deepEqual(withCart.carts[0].addSectionIds,[stg104.id]);
   assert.equal(withCart.carts[0].reason,'Course Board cart acceptance testing reason.');
 
   r=await fetch(base+'/api/student/add-drop',{
-   method:'POST',headers:{'content-type':'application/json',host:'hiau-staging.totag.network'},
+   method:'POST',headers:{'content-type':'application/json','x-forwarded-host':'hiau-staging.totag.network'},
    body:JSON.stringify({termId,addSectionIds:[stg104.id],dropRegistrationIds:[],reason:'Course Board cart acceptance testing reason.'}),
   });
   assert.equal(r.status,201);
 
-  r=await fetch(base+'/api/student/add-drop',{headers:{host:'hiau-staging.totag.network'}});
+  r=await fetch(base+'/api/student/add-drop',{headers:{'x-forwarded-host':'hiau-staging.totag.network'}});
   const afterSubmit:any=await r.json();
   assert.equal(afterSubmit.carts.length,0);
   assert.equal(afterSubmit.requests[0].status,'submitted');
