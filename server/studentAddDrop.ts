@@ -130,15 +130,15 @@ export function installStudentAddDrop(app:Express,store:Operations){
   const resultingCredits=[...remaining,...additions].reduce((sum:any,row:any)=>sum+Number(row.credits||0),0);
   if(resultingCredits>term.max_credits)return {error:`The resulting schedule exceeds the ${term.max_credits}-credit term limit.`};
   if(resultingCredits<1)return {error:'At least one active course must remain after Add/Drop.'};
-  const week=semesterWeek(term.start_date),rate=refundRate(week);
+  const rate=1;
   let estimatedDropCredit=0;
   for(const row of current.filter((r:any)=>dropSet.has(r.registration_id))){
    const line=store.one('SELECT amount_cents FROM invoice_lines WHERE registration_id=?',row.registration_id);
-   if(line)estimatedDropCredit+=Math.round(line.amount_cents*rate);
+   if(line)estimatedDropCredit+=line.amount_cents;
   }
   const addedUnbilled=additions.reduce((sum:number,row:any)=>sum+Number(row.credits)*Number(row.fee_cents),0);
   return {term,current,additions,resultingCredits,underloadWarning:resultingCredits<12,
-    week,refundPercent:Math.round(rate*100),estimatedDropCredit,addedUnbilled};
+    refundPercent:100,estimatedDropCredit,addedUnbilled};
  };
 
  app.get('/api/student/add-drop',(req,res)=>{
