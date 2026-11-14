@@ -97,7 +97,28 @@ test('paid drop without replacement creates controlled refund payable and deadli
   actor=bursar2;
   result=await call('POST','/api/student/add-drop/refunds/'+refund.id+'/pay',{method:'cash',externalReference:''});
   assert.equal(result.status,200);
-  assert.match(result.data.reference,/^HIAU-REF-2026-\d{6}$/);
+  assert.match(result.data.reference,new RegExp('^HIAU-REF-'+receivedDate.slice(0,4)+'-\\d{6}
+  assert.equal(store.balance(studentId),0);
+  assert.equal(store.invoiceBalance(invoiceId),0);
+
+  actor=studentUser;
+  result=await call('GET','/api/student/my-statement');
+  assert.equal(result.status,200);
+  assert.equal(result.data.invoices[0].refunds[0].status,'paid');
+
+  actor=registrar;
+  store.execute(registrar,'termRegistrationDeadline',{id:term.id,registrationCloseDate:termStart});
+  actor=studentUser;
+  result=await call('PUT','/api/student/add-drop/cart',{termId:term.id,addSectionIds:[],dropRegistrationIds:[reg2],reason:'Late drop should be blocked by deadline.'});
+  assert.equal(result.status,409);
+  assert.match(result.data.error,/closed/i);
+ }finally{
+  server.closeAllConnections();
+  await new Promise<void>((resolve,reject)=>server.close(error=>error&&(error as NodeJS.ErrnoException).code!=='ERR_SERVER_NOT_RUNNING'?reject(error):resolve()));
+  store.close();fs.rmSync(directory,{recursive:true,force:true});
+ }
+});
+));
   assert.equal(store.balance(studentId),0);
   assert.equal(store.invoiceBalance(invoiceId),0);
 
