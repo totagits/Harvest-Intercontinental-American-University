@@ -48,6 +48,7 @@ import {RegistrarStudentLinking} from './components/portal/RegistrarStudentLinki
 import {StagingStudentRecordSetup} from './components/portal/StagingStudentRecordSetup';
 import { FinanceBursarModule } from './components/portal/FinanceBursarModule';
 import {FinanceRegistrationHandoff} from './components/portal/FinanceRegistrationHandoff';
+import {FinancePaymentWorkflow} from './components/portal/FinancePaymentWorkflow';
 import { PolicyComplianceRegister } from './components/portal/PolicyComplianceRegister';
 import { PrintableDocumentModal } from './components/portal/PrintableDocumentModal';
 import { PortalThemeSettingsModal } from './components/portal/PortalThemeSettingsModal';
@@ -592,6 +593,7 @@ export default function App() {
                 <FinanceBursarModule currentUser={currentUser} />
                 <FinanceRegistrationHandoff currentUser={currentUser} />
                 <StudentAssistanceRequests currentUser={currentUser} />
+                <FinancePaymentWorkflow currentUser={currentUser} />
               </>
             )}
 
