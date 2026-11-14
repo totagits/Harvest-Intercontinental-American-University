@@ -20,7 +20,7 @@ test('ERP-STUDENT-01A plans are private, scoped, audited and do not create enrol
  db.run('INSERT INTO programs VALUES(?,?,?,?,?)',programId,'P-01','Approved sample program',120,stamp);
  db.run('INSERT INTO terms VALUES(?,?,?,?,?,?,?,?)',termId,'T-01','Test term','2026-11-01','2027-03-01','open',18,stamp);
  db.run('INSERT INTO courses VALUES(?,?,?,?,?,?)',courseId,'C-101','Test course',3,10000,stamp);
- db.run('INSERT INTO sections VALUES(?,?,?,?,?,?,?,?,?)',sectionId,courseId,termId,lecturer,'A',40,'Online','Mon 09:00',stamp);
+ db.run("INSERT INTO sections(id,course_id,term_id,lecturer_id,code,capacity,delivery_mode,location,classroom,online_classroom,schedule,created_at) VALUES(?,?,?,?,?,?,'online','','','HIAU Online Classroom — TEST','Mon 09:00',?)",sectionId,courseId,termId,lecturer,'A',40,stamp);
  for(const [id,email,app,number,user] of [[studentId,'one@example.test',appId,'ST-01',studentUser],[otherStudentId,'two@example.test',appOther,'ST-02',otherUser]] as const){
   db.run('INSERT INTO applications VALUES(?,?,?,?,?,?,?,?,?,?)',app,'APP-'+number,id,email,'',programId,'admitted','',stamp,stamp);
   db.run('INSERT INTO students VALUES(?,?,?,?,?,?,?,?,?,?,?)',id,user,app,number,id,email,programId,termId,'active',0,stamp);
