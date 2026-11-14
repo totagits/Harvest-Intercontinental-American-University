@@ -27,7 +27,7 @@ async function putCart(body:object){
 type StudentState={
  linked:boolean;
  terms:{id:string;title:string;max_credits:number}[];
- sections:{id:string;term_id:string;course_id:string;course_code:string;course_title:string;credits:number;schedule?:string;delivery_mode?:'classroom'|'online'|'hybrid';location?:string;classroom?:string;online_classroom?:string}[];
+ sections:{id:string;term_id:string;course_id:string;course_code:string;course_title:string;credits:number;schedule?:string;delivery_mode?:'classroom'|'online'|'hybrid';location?:string;classroom?:string;online_classroom?:string;has_online_classroom?:number}[];
  registrations:{registration_id:string;section_id:string;term_id:string;course_id:string;course_code:string;course_title:string;credits:number;schedule?:string;delivery_mode?:'classroom'|'online'|'hybrid';location?:string;classroom?:string;online_classroom?:string}[];
  requests:any[];
  carts:{term_id:string;addSectionIds:string[];dropRegistrationIds:string[];reason:string;updated_at:string}[];
@@ -35,8 +35,10 @@ type StudentState={
 const statusLabel=(s:string)=>s.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
 const sectionAccess=(section:any)=>{
  const mode=section.delivery_mode||'classroom';
- if(mode==='online')return `Online · ${section.online_classroom||'Online classroom TBA'}`;
- if(mode==='hybrid')return `Hybrid · ${section.classroom?('Classroom '+section.classroom):'Classroom TBA'} · ${section.online_classroom||'Online classroom TBA'}`;
+ const online=section.online_classroom||
+  (Number(section.has_online_classroom)===1?'Online access after enrollment':'Online classroom TBA');
+ if(mode==='online')return `Online · ${online}`;
+ if(mode==='hybrid')return `Hybrid · ${section.classroom?('Classroom '+section.classroom):'Classroom TBA'} · ${online}`;
  return `Classroom · ${section.classroom?('Classroom '+section.classroom):'Classroom TBA'}`;
 };
 
