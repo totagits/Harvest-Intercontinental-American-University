@@ -24,8 +24,10 @@ const money = (cents: unknown) =>
     : 'Not available';
 const stamp = (value: unknown) => {
   const text = string(value);
-  const date = new Date(text);
-  return text && !Number.isNaN(date.getTime()) ? date.toLocaleDateString() : 'Not recorded';
+  const match=/^(\d{4})-(\d{2})-(\d{2})/.exec(text);
+  if(!match)return 'Not recorded';
+  const date=new Date(Date.UTC(Number(match[1]),Number(match[2])-1,Number(match[3])));
+  return new Intl.DateTimeFormat('en-US',{year:'numeric',month:'2-digit',day:'2-digit',timeZone:'UTC'}).format(date);
 };
 const Panel: React.FC<{title: string; children: React.ReactNode}> = ({title,children}) =>
   <section className="rounded-2xl border border-[#e6dce7] bg-white p-5 shadow-sm">
@@ -148,6 +150,6 @@ export const SecureStudentWorkspace: React.FC<{currentUser: UserProfile}> = ({cu
       {payments.length > 0 && <p className="mt-4 text-xs text-slate-600">{payments.length} payment record(s) associated with your invoices. Only reconciled transactions reduce confirmed outstanding balances.</p>}
     </Panel>
     <StudentActivityTimeline />
-    <p className="text-xs text-slate-600">This workspace displays server-authorized records only. Messaging, document issuance, and other original AI Studio features remain under controlled integration until their security and persistence checks pass.</p>
+    <p className="text-xs text-slate-600">This workspace displays server-authorized records only. Posted tuition invoices and reconciled-payment receipts can be downloaded from My Financial Statement; other document issuance remains under controlled integration until its security and persistence checks pass.</p>
   </div>;
 };
