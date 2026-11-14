@@ -380,7 +380,13 @@ export class Operations {
           WHEN lower(location) LIKE '%online%' OR lower(location) LIKE '%virtual%' THEN 'online'
           ELSE delivery_mode
         END
-      WHERE delivery_mode='classroom'
+      WHERE delivery_mode='classroom';
+      UPDATE sections
+      SET location=trim(replace(location,' / Hybrid',''))
+      WHERE delivery_mode='hybrid' AND location LIKE '% / Hybrid';
+      UPDATE sections
+      SET location=''
+      WHERE delivery_mode='online' AND (location LIKE '% / Online' OR location LIKE '% / Virtual');
     `);
   }
   all(query: string, ...parameters: any[]): any[] {
