@@ -116,15 +116,20 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
  };
 
  const submit=async()=>{
-  if(busy||registrationClosed)return;setBusy(true);setError('');setMessage('');
+  if(busy||registrationClosed)return;
+  setBusy(true);setError('');setMessage('Submitting Add/Drop request to Registrar…');
   try{
    await saveStudentCart(adds,drops,reason);
    const r=await post('/api/student/add-drop',{termId,addSectionIds:adds,dropRegistrationIds:drops,reason});
-   setMessage('Add/Drop request submitted for Registrar review. No registration or billing change has occurred yet.');
-   setAdds([]);setDrops([]);setReason('');await load();
-   if(r.underloadWarning)setMessage(m=>'Your request was submitted. Resulting load is below 12 credits and requires Registrar judgment. No registration or billing change has occurred yet.');
-  }catch(e){setError(e instanceof Error?e.message:'Add/Drop request could not be submitted.');}
-  finally{setBusy(false);}
+   setAdds([]);setDrops([]);setReason('');
+   await load();
+   setMessage(r.underloadWarning
+    ?'Your request was submitted. Resulting load is below 12 credits and requires Registrar judgment. No registration or billing change has occurred yet.'
+    :'Add/Drop request submitted for Registrar review. No registration or billing change has occurred yet.');
+  }catch(e){
+   setMessage('');
+   setError(e instanceof Error?e.message:'Add/Drop request could not be submitted.');
+  }finally{setBusy(false);}
  };
  const review=async(id:string,decision:string)=>{
   if(busy)return;setBusy(true);setError('');setMessage('');
@@ -225,7 +230,8 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
      </span>
      <span className="text-slate-500">{reason.length}/1000 characters</span>
     </div>
-    <button disabled={busy||registrationClosed||(!adds.length&&!drops.length)||reason.trim().length<20} onClick={()=>void submit()} title={reason.trim().length<20?'Enter at least 20 characters in the reason field before submitting.':undefined} className="hiau-finance-primary mt-3 rounded-lg px-4 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50">Submit Add/Drop request to Registrar</button>
+    <button type="button" disabled={busy||registrationClosed||(!adds.length&&!drops.length)||reason.trim().length<20} onClick={()=>void submit()} title={reason.trim().length<20?'Enter at least 20 characters in the reason field before submitting.':undefined} className="hiau-finance-primary mt-3 rounded-lg px-4 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50">{busy?'Submitting…':'Submit Add/Drop request to Registrar'}</button>
+    {(error||message)&&<p role={error?'alert':'status'} aria-live="polite" className={"mt-3 rounded border p-3 text-sm "+(error?'border-amber-300 bg-amber-50 text-amber-950':'border-[#D8C8DC] bg-white text-[#4A1249]')}>{error||message}</p>}
    </div>
 
    <div className="mt-6"><h3 className="font-bold">My Add/Drop requests</h3>{student.requests?.length?<div className="mt-2 space-y-2">{student.requests.map((r:any)=><div key={r.id} className="rounded-lg border border-[#E6DCE7] p-3 text-sm">
