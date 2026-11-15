@@ -45,8 +45,10 @@ export function installStudentAddDrop(app:Express,store:Operations){
   if(!actor||actor.role!=='student')return null;
   return store.one('SELECT * FROM students WHERE user_id=?',actor.id);
  };
- const registrar=(res:Response)=>['super_admin','registrar'].includes(actorOf(res)?.role||'');
- const finance=(res:Response)=>['super_admin','bursar','registrar'].includes(actorOf(res)?.role||'');
+ const hasPermission=(res:Response,permission:string)=>!!actorOf(res)?.authority?.permissions?.includes(permission);
+ const registrarReview=(res:Response)=>['super_admin','registrar'].includes(actorOf(res)?.role||'')||hasPermission(res,'registration.review');
+ const registrarCommit=(res:Response)=>['super_admin','registrar'].includes(actorOf(res)?.role||'')||hasPermission(res,'registration.commit');
+ const finance=(res:Response)=>['super_admin','bursar','registrar'].includes(actorOf(res)?.role||'')||hasPermission(res,'student_billing.view');
  const withDeadline=(term:any)=>term?({
   ...term,
   registration_close_date:store.one('SELECT close_date FROM term_registration_deadlines WHERE term_id=?',term.id)?.close_date||term.end_date,
@@ -178,7 +180,7 @@ export function installStudentAddDrop(app:Express,store:Operations){
     .map((r:any)=>({...r,addSectionIds:parseIds(r.add_section_ids),dropRegistrationIds:parseIds(r.drop_registration_ids)}));
    return res.json({linked:true,terms,sections,registrations,requests,carts});
   }
-  if(!registrar(res))return res.sendStatus(403);
+  if(!registrarReview(res))return res.sendStatus(403);
   const requests=store.all(`SELECT a.*,s.student_number,s.full_name,t.title AS term_title
     FROM student_add_drop_requests a JOIN students s ON s.id=a.student_id JOIN terms t ON t.id=a.term_id
     WHERE a.status IN('submitted','approved') ORDER BY a.created_at`).map((r:any)=>{
@@ -272,7 +274,7 @@ export function installStudentAddDrop(app:Express,store:Operations){
  });
 
  app.post('/api/student/add-drop/:id/review',express.json({limit:'8kb'}),(req,res)=>{
-  if(!registrar(res)||!uuid.test(req.params.id))return res.sendStatus(403);
+  if(!registrarReview(res)||!uuid.test(req.params.id))return res.sendStatus(403);
   const decision=req.body?.decision,note=req.body?.note;
   if(!['approved','returned','rejected'].includes(decision)||typeof note!=='string'||note.trim().length<10||note.length>1200)
    return res.status(400).json({error:'Choose a review decision and enter a note of at least 10 characters.'});
@@ -289,7 +291,7 @@ export function installStudentAddDrop(app:Express,store:Operations){
  });
 
  app.post('/api/student/add-drop/:id/commit',express.json({limit:'4kb'}),(req,res)=>{
-  if(!registrar(res)||!uuid.test(req.params.id))return res.sendStatus(403);
+  if(!registrarCommit(res)||!uuid.test(req.params.id))return res.sendStatus(403);
   if(req.body?.confirmation!=='CONFIRM_ADD_DROP')return res.status(400).json({error:'Confirm the approved Add/Drop request before committing registration changes.'});
   try{
    const result=store.transaction(()=>{
@@ -377,7 +379,7 @@ export function installStudentAddDrop(app:Express,store:Operations){
 
  app.post('/api/student/add-drop/refunds/:id/review',express.json({limit:'8kb'}),(req,res)=>{
   const actor=actorOf(res);
-  if(!actor||!['super_admin','bursar'].includes(actor.role)||!uuid.test(req.params.id))return res.sendStatus(403);
+  if(!actor||(!['super_admin','bursar'].includes(actor.role)&&!actor.authority?.permissions?.includes('refund.review'))||!uuid.test(req.params.id))return res.sendStatus(403);
   const decision=req.body?.decision,note=typeof req.body?.note==='string'?req.body.note.trim():'';
   if(!['approved','cancelled'].includes(decision)||note.length<10||note.length>1200)
    return res.status(400).json({error:'Choose approve/cancel and provide a Finance note of at least 10 characters.'});
@@ -392,7 +394,7 @@ export function installStudentAddDrop(app:Express,store:Operations){
 
  app.post('/api/student/add-drop/refunds/:id/pay',express.json({limit:'8kb'}),(req,res)=>{
   const actor=actorOf(res);
-  if(!actor||!['super_admin','bursar'].includes(actor.role)||!uuid.test(req.params.id))return res.sendStatus(403);
+  if(!actor||(!['super_admin','bursar'].includes(actor.role)&&!actor.authority?.permissions?.includes('refund.pay'))||!uuid.test(req.params.id))return res.sendStatus(403);
   try{
    const result=store.transaction(()=>{
     const refund=store.one('SELECT * FROM student_refunds WHERE id=?',req.params.id);
