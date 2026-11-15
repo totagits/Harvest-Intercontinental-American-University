@@ -37,6 +37,14 @@ if(stagingAcceptanceStudent.created)
     stagingAcceptanceStudent.termTitle,
   );
 const app = express();
+// Installed PWAs are scoped under /staff/ and /student/. If an older bundle
+// resolves an authentication URL relative to that scope, normalize it back to
+// the canonical root API before routing so it cannot fall through to index.html.
+app.use((req,res,next)=>{
+  if(/^\/(?:staff|student)\/api\/auth\//.test(req.url))
+    req.url=req.url.replace(/^\/(?:staff|student)(?=\/api\/auth\/)/,'');
+  next();
+});
 app.use((req, res, next) => {
   if (/^\/api\/auth\//.test(req.path) || (req.path === '/api/applications' && req.method === 'POST'))
     return express.json({ limit: req.path === '/api/applications' ? '12kb' : '64kb' })(req, res, next);
