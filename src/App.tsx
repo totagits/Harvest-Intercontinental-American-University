@@ -261,6 +261,49 @@ export default function App() {
     return () => { active = false; window.removeEventListener('gu:session-expired', expire); };
   }, []);
 
+  // Revalidate the server session whenever the user returns to this PWA/tab.
+  // Student and Staff apps currently share the HIAU origin, so another login in
+  // the same browser can replace the cookie while this tab is still open.
+  // Never leave a stale student UI running against a staff session (or vice versa).
+  useEffect(() => {
+    let checking = false;
+    const revalidateSession = async () => {
+      if (checking || document.visibilityState === 'hidden') return;
+      checking = true;
+      try {
+        const response = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' });
+        if (!response.ok) throw new Error('No active session');
+        const session = await response.json();
+        setSessionCsrf(session.csrf || '');
+        const sameIdentity = currentUser?.id === session.user?.id && currentUser?.role === session.user?.role;
+        if (!sameIdentity) {
+          setCurrentUser(session.user);
+          const safeTab = defaultPortalModule(session.user.role) ?? 'tasks';
+          setActivePortalTab(safeTab);
+        }
+        if (appKind !== null && !canUseInstalledApp(session.user.role)) {
+          setViewMode('public');
+          setIsLoginModalOpen(true);
+        }
+      } catch {
+        setSessionCsrf('');
+        setCurrentUser(null);
+        setViewMode('public');
+        if (appKind !== null) setIsLoginModalOpen(true);
+      } finally {
+        checking = false;
+      }
+    };
+    const onFocus = () => { void revalidateSession(); };
+    const onVisibility = () => { if (document.visibilityState === 'visible') void revalidateSession(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [appKind, currentUser?.id, currentUser?.role]);
+
   // Fetch updated student and finance data for print documents
   const refreshStudentPrintData = async (): Promise<boolean> => {
     setStudentData(null);
