@@ -442,366 +442,203 @@ function InstitutionalAuthorityManager({accounts,onMessage}:{accounts:any[];onMe
   const [busy,setBusy]=useState(false);
   const [selectedRoles,setSelectedRoles]=useState<string[]>(['registrar_review']);
   const reload=()=>request('/api/identity/authority').then(setData).catch(e=>onMessage(displayError(e)));
-  useEffect(()=>{reload();},[]);
+  useEffect(()=>{void reload();},[]);
   const toggleRole=(key:string)=>setSelectedRoles(current=>current.includes(key)?current.filter(x=>x!==key):[...current,key]);
-  return <Panel title="Institutional Positions & RBAC" detail="Create university positions, attach multiple functional roles, define organizational scope and approval authority, then assign positions to accounts. Existing legacy account roles remain active during migration.">
-    <form className="campus-form" onSubmit={async e=>{
-      e.preventDefault();setBusy(true);
-      try{
-        const values=Object.fromEntries(new FormData(e.currentTarget));
-        await request('/api/identity/positions','POST',{
-          title:values.title,code:values.code,department:values.department,
-          scopeType:values.scopeType,scopeValue:values.scopeValue,
-          approvalLimitCents:values.approvalLimitUSD?Math.round(Number(values.approvalLimitUSD)*100):null,
-          canDelegate:values.canDelegate==='yes',roles:selectedRoles
-        });
-        onMessage('Institutional position created and audited.');setSelectedRoles(['registrar_review']);(e.currentTarget as HTMLFormElement).reset();await reload();
-      }catch(error){onMessage(displayError(error));}finally{setBusy(false);}
-    }}>
-      <div className="campus-filters">
-        <label>Position title<input name="title" required placeholder="e.g. Assistant Registrar"/></label>
-        <label>Position code<input name="code" required placeholder="assistant-registrar"/></label>
-        <label>Department / office<input name="department" placeholder="Office of the Registrar"/></label>
-        <label>Scope<select name="scopeType" defaultValue="university"><option value="university">University-wide</option><option value="campus">Campus</option><option value="college">College / School</option><option value="department">Department</option><option value="program">Program</option><option value="course">Course / Section</option></select></label>
-        <label>Scope value<input name="scopeValue" placeholder="e.g. College of Engineering"/></label>
-        <label>Approval limit (USD)<input name="approvalLimitUSD" type="number" min="0" step="0.01" placeholder="Optional"/></label>
-        <label>Delegation<select name="canDelegate" defaultValue="no"><option value="no">Cannot delegate</option><option value="yes">May delegate authority</option></select></label>
-      </div>
-      <fieldset><legend>Functional roles</legend><div className="campus-filters">
-        {data.roles.map((role:any)=><label key={role.key} className="campus-record"><input type="checkbox" checked={selectedRoles.includes(role.key)} onChange={()=>toggleRole(role.key)}/><strong>{role.label}</strong><span className="campus-muted">{role.permissions.join(', ')}</span></label>)}
-      </div></fieldset>
-      <button className="campus-button" disabled={busy||selectedRoles.length===0}>{busy?'Creating…':'Create position'}</button>
-    </form>
-    <RecordList items={data.positions} render={(position:any)=><>
-      <strong>{position.title}</strong><p>{position.code} · {position.department||'No department'} · Scope: {position.scope_type}{position.scope_value?' — '+position.scope_value:''} · {position.active?'Active':'Archived'}</p>
-      <p className="campus-muted">Roles: {position.roles.join(', ')||'None'}{position.approval_limit_cents!==null?' · Approval limit 
-  const [data, setData] = useState<any>(null);
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [audit, setAudit] = useState<any>(null);
-  const [msg, setMsg] = useState('');
-  const [activation, setActivation] = useState('');
-  const isAdmin = user.role === 'super_admin';
-  const reload = () => {
-    if (isAdmin) {
-      request('/api/platform/status')
-        .then(setData)
-        .catch((e) => setMsg(displayError(e)));
-      request('/api/identity/accounts')
-        .then(setAccounts)
-        .catch(() => {});
-      request('/api/identity/audit')
-        .then(setAudit)
-        .catch(() => {});
-    }
-  };
-  useEffect(() => {
-    reload();
-  }, [isAdmin]);
+
   return (
-    <div className="campus-workspace hiau-account-center">
-      <div className="campus-eyebrow">ACCOUNT & INTEGRATIONS</div>
-      <h2>Your account and university connections</h2>
-      <Panel title="Change password">
-        <form
-          className="campus-form"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const values = Object.fromEntries(new FormData(e.currentTarget));
-            try {
-              await request('/api/auth/change-password', 'POST', values);
-              location.assign('/?portal=1');
-            } catch (e) {
-              setMsg(displayError(e));
-            }
-          }}
-        >
-          <label>
-            Current password
-            <input
-              name="currentPassword"
-              type="password"
-              autoComplete="current-password"
-              required
-            />
-          </label>
-          <label>
-            New password
-            <input
-              name="password"
-              type="password"
-              minLength={12}
-              maxLength={128}
-              autoComplete="new-password"
-              required
-            />
-          </label>
-          <button className="campus-button">Change password</button>
-        </form>
-      </Panel>
-      <Panel
-        title="Browser push notifications"
-        detail="Enable notifications on this device to receive alerts while the portal is closed. Notifications contain no student details."
+    <Panel
+      title="Institutional Positions & RBAC"
+      detail="Create university positions, attach functional roles, define organizational scope and approval authority, then assign positions to accounts. Existing legacy account roles remain active during migration."
+    >
+      <form
+        className="campus-form"
+        onSubmit={async (e)=>{
+          e.preventDefault();
+          setBusy(true);
+          const form=e.currentTarget;
+          try{
+            const values=Object.fromEntries(new FormData(form));
+            await request('/api/identity/positions','POST',{
+              title:values.title,
+              code:values.code,
+              department:values.department,
+              scopeType:values.scopeType,
+              scopeValue:values.scopeValue,
+              approvalLimitCents:values.approvalLimitUSD ? Math.round(Number(values.approvalLimitUSD)*100) : null,
+              canDelegate:values.canDelegate==='yes',
+              roles:selectedRoles,
+            });
+            onMessage('Institutional position created and audited.');
+            setSelectedRoles(['registrar_review']);
+            form.reset();
+            await reload();
+          }catch(error){
+            onMessage(displayError(error));
+          }finally{
+            setBusy(false);
+          }
+        }}
       >
-        <button
-          className="campus-button"
-          onClick={async () => {
-            try {
-              if (!('serviceWorker' in navigator) || !('PushManager' in window))
-                throw Error(
-                  'This browser does not support push notifications.',
-                );
-              if ((await Notification.requestPermission()) !== 'granted')
-                throw Error('Notifications were not enabled.');
-              const registration =
-                await navigator.serviceWorker.register('/sw.js');
-              const key = await request('/api/platform/push');
-              const decoded = atob(
-                key.publicKey.replace(/-/g, '+').replace(/_/g, '/'),
-              );
-              const bytes = Uint8Array.from(decoded, (c) => c.charCodeAt(0));
-              const subscription = await registration.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: bytes,
-              });
-              await request('/api/platform/push', 'POST', {
-                subscription: subscription.toJSON(),
-              });
-              setMsg('Notifications enabled for this account and device.');
-            } catch (e) {
-              setMsg(displayError(e));
-            }
-          }}
-        >
-          Enable device notifications
+        <div className="campus-filters">
+          <label>Position title<input name="title" required placeholder="e.g. Assistant Registrar"/></label>
+          <label>Position code<input name="code" required placeholder="assistant-registrar"/></label>
+          <label>Department / office<input name="department" placeholder="Office of the Registrar"/></label>
+          <label>
+            Scope
+            <select name="scopeType" defaultValue="university">
+              <option value="university">University-wide</option>
+              <option value="campus">Campus</option>
+              <option value="college">College / School</option>
+              <option value="department">Department</option>
+              <option value="program">Program</option>
+              <option value="course">Course / Section</option>
+            </select>
+          </label>
+          <label>Scope value<input name="scopeValue" placeholder="e.g. College of Engineering"/></label>
+          <label>Approval limit (USD)<input name="approvalLimitUSD" type="number" min="0" step="0.01" placeholder="Optional"/></label>
+          <label>
+            Delegation
+            <select name="canDelegate" defaultValue="no">
+              <option value="no">Cannot delegate</option>
+              <option value="yes">May delegate authority</option>
+            </select>
+          </label>
+        </div>
+
+        <fieldset>
+          <legend>Functional roles</legend>
+          <div className="campus-filters">
+            {data.roles.map((role:any)=>(
+              <label key={role.key} className="campus-record">
+                <input
+                  type="checkbox"
+                  checked={selectedRoles.includes(role.key)}
+                  onChange={()=>toggleRole(role.key)}
+                />
+                <strong>{role.label}</strong>
+                <span className="campus-muted">{role.permissions.join(', ')}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <button className="campus-button" disabled={busy||selectedRoles.length===0}>
+          {busy?'Creating…':'Create position'}
         </button>
-        <button
-          className="campus-button secondary"
-          onClick={async () => {
-            try {
-              await request('/api/platform/push', 'DELETE');
-              const reg = await navigator.serviceWorker.getRegistration();
-              await (await reg?.pushManager.getSubscription())?.unsubscribe();
-              setMsg('Device notifications disabled.');
-            } catch (e) {
-              setMsg(displayError(e));
-            }
-          }}
-        >
-          Disable device notifications
-        </button>
-      </Panel>
-      {isAdmin && (
-        <>
-          <InstitutionalAuthorityManager accounts={accounts} onMessage={setMsg} />
-                    <Panel title="Account invitations">
+      </form>
+
+      <RecordList
+        items={data.positions}
+        render={(position:any)=>(
+          <>
+            <strong>{position.title}</strong>
+            <p>
+              {position.code} · {position.department||'No department'} · Scope: {position.scope_type}
+              {position.scope_value?' — '+position.scope_value:''} · {position.active?'Active':'Archived'}
+            </p>
+            <p className="campus-muted">
+              Roles: {position.roles.join(', ')||'None'}
+              {position.approval_limit_cents!==null && position.approval_limit_cents!==undefined
+                ? ' · Approval limit USD '+(Number(position.approval_limit_cents)/100).toFixed(2)
+                : ''}
+              {position.can_delegate?' · Delegation allowed':''}
+            </p>
+
             <form
-              className="campus-form"
-              onSubmit={async (e) => {
+              className="campus-filters"
+              onSubmit={async (e)=>{
                 e.preventDefault();
-                try {
-                  const result = await request(
-                    '/api/identity/invite',
-                    'POST',
-                    Object.fromEntries(new FormData(e.currentTarget)),
-                  );
-                  setActivation(result.activationUrl);
-                  reload();
-                } catch (e) {
-                  setMsg(displayError(e));
+                const values=Object.fromEntries(new FormData(e.currentTarget));
+                setBusy(true);
+                try{
+                  await request('/api/identity/positions/'+position.id+'/assign','POST',{
+                    userId:values.userId,
+                    isPrimary:values.isPrimary==='yes',
+                    effectiveFrom:values.effectiveFrom||null,
+                    effectiveTo:values.effectiveTo||null,
+                  });
+                  onMessage('Position assignment saved; the affected user session was revoked so new authority takes effect on next sign-in.');
+                  await reload();
+                }catch(error){
+                  onMessage(displayError(error));
+                }finally{
+                  setBusy(false);
                 }
               }}
             >
-              <label>
-                Name
-                <input name="name" required />
-              </label>
-              <label>
-                Email
-                <input name="email" type="email" required />
-              </label>
-              <label>
-                Role
-                <select name="role">
-                  {[
-                    'student',
-                    'alumni',
-                    'lecturer',
-                    'dean',
-                    'registrar',
-                    'bursar',
-                    'admissions_officer',
-                    'super_admin',
-                  ].map((r) => (
-                    <option key={r}>{r}</option>
-                  ))}
-                </select>
-              </label>
-              <button className="campus-button">Create invitation</button>
+              <select name="userId" required defaultValue="">
+                <option value="" disabled>Assign to account…</option>
+                {accounts.map((account:any)=><option key={account.id} value={account.id}>{account.email}</option>)}
+              </select>
+              <select name="isPrimary" defaultValue="no">
+                <option value="no">Additional position</option>
+                <option value="yes">Primary position</option>
+              </select>
+              <input name="effectiveFrom" type="date" aria-label="Effective from"/>
+              <input name="effectiveTo" type="date" aria-label="Effective to"/>
+              <button className="campus-button secondary" disabled={busy}>Assign position</button>
             </form>
-            {activation && (
-              <div className="campus-record">
-                <p>
-                  Private activation link · expires in 48 hours · usable once
-                </p>
-                <input
-                  readOnly
-                  aria-label="Account activation link"
-                  value={activation}
-                />
-                <p className="campus-muted">
-                  Share privately with the intended account owner.
-                </p>
+
+            {position.assignees?.length>0 && (
+              <div>
+                {position.assignees.map((assignee:any)=>(
+                  <div key={assignee.user_id} className="campus-record">
+                    <span>
+                      {assignee.email}
+                      {assignee.is_primary?' · Primary':''}
+                      {!assignee.active?' · Inactive':''}
+                    </span>
+                    {assignee.active && (
+                      <button
+                        type="button"
+                        className="campus-button secondary"
+                        onClick={async()=>{
+                          setBusy(true);
+                          try{
+                            await request('/api/identity/positions/'+position.id+'/assign/'+assignee.user_id,'DELETE');
+                            onMessage('Position assignment ended and audited.');
+                            await reload();
+                          }catch(error){
+                            onMessage(displayError(error));
+                          }finally{
+                            setBusy(false);
+                          }
+                        }}
+                      >
+                        End assignment
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
-            <RecordList
-              items={accounts}
-              render={(a: any) => (
-                <>
-                  <strong>{a.email}</strong>
-                  <p>
-                    {a.role} ·{' '}
-                    {a.activated ? 'Activated' : 'Awaiting activation'} ·{' '}
-                    {a.disabled ? 'Disabled' : 'Enabled'}
-                  </p>
-                  {a.id !== user.id && (
-                    <form
-                      className="campus-filters"
-                      onSubmit={async (e) => {
-                        e.preventDefault();
-                        const values = Object.fromEntries(
-                          new FormData(e.currentTarget),
-                        );
-                        try {
-                          await request(
-                            '/api/identity/accounts/' + a.id,
-                            'PATCH',
-                            {
-                              role: values.role,
-                              disabled: values.disabled === 'yes',
-                            },
-                          );
-                          reload();
-                          setMsg('Access updated; existing sessions revoked.');
-                        } catch (e) {
-                          setMsg(displayError(e));
-                        }
-                      }}
-                    >
-                      <select
-                        name="role"
-                        aria-label={'Role for ' + a.email}
-                        defaultValue={a.role}
-                      >
-                        {[
-                          'student',
-                          'alumni',
-                          'lecturer',
-                          'dean',
-                          'registrar',
-                          'bursar',
-                          'admissions_officer',
-                          'super_admin',
-                        ].map((r) => (
-                          <option key={r}>{r}</option>
-                        ))}
-                      </select>
-                      <select
-                        name="disabled"
-                        defaultValue={a.disabled ? 'yes' : 'no'}
-                      >
-                        <option value="no">Enabled</option>
-                        <option value="yes">Disabled</option>
-                      </select>
-                      <button className="campus-button secondary">
-                        Update access
-                      </button>
-                    </form>
-                  )}
-                </>
-              )}
-            />
-          </Panel>
-          <Panel
-            title="Integration readiness"
-            detail="Configure secret values in Coolify. This page shows configuration presence, never credentials."
-          >
-            <RecordList
-              items={Object.entries(data?.providers || {}).map(
-                ([id, v]: any) => ({ id, ...v }),
-              )}
-              render={(p: any) => (
-                <>
-                  <strong>
-                    {p.provider} ·{' '}
-                    {p.configured
-                      ? 'Configured — verify delivery'
-                      : 'Not connected'}
-                  </strong>
-                  <p>{p.required.join(', ')}</p>
-                </>
-              )}
-            />
+
             <button
+              type="button"
               className="campus-button secondary"
-              onClick={async () => {
-                try {
-                  await request('/api/platform/test-email', 'POST', {});
-                  setMsg(
-                    'Email provider accepted the test message for your account address.',
-                  );
-                } catch (e) {
-                  setMsg(displayError(e));
+              disabled={busy}
+              onClick={async()=>{
+                setBusy(true);
+                try{
+                  await request('/api/identity/positions/'+position.id,'PATCH',{active:!position.active});
+                  onMessage(position.active
+                    ? 'Position archived. Historical assignments and audit records were preserved.'
+                    : 'Position reactivated.');
+                  await reload();
+                }catch(error){
+                  onMessage(displayError(error));
+                }finally{
+                  setBusy(false);
                 }
               }}
             >
-              Send test email to my account
+              {position.active?'Archive position':'Reactivate position'}
             </button>
-          </Panel>
-          <TranslationManager />
-          <EncryptedBackups />
-          <Panel
-            title="Security audit"
-            detail="Chained hashes detect inconsistent edits to retained audit entries; an external checkpoint is required to detect a complete privileged rewrite."
-          >
-            <p>
-              Audit chain: {audit?.intact ? 'Consistent' : 'Not yet verified'}
-            </p>
-            <RecordList
-              items={audit?.entries}
-              render={(a: any) => (
-                <>
-                  <strong>{a.action}</strong>
-                  <p>
-                    {a.actor} · {a.at}
-                  </p>
-                </>
-              )}
-            />
-          </Panel>
-        </>
-      )}
-      <p role="status" className="campus-status">
-        {msg}
-      </p>
-    </div>
+          </>
+        )}
+      />
+    </Panel>
   );
-}
-+(position.approval_limit_cents/100).toFixed(2):''}{position.can_delegate?' · Delegation allowed':''}</p>
-      <form className="campus-filters" onSubmit={async e=>{
-        e.preventDefault();const values=Object.fromEntries(new FormData(e.currentTarget));setBusy(true);
-        try{await request('/api/identity/positions/'+position.id+'/assign','POST',{userId:values.userId,isPrimary:values.isPrimary==='yes',effectiveFrom:values.effectiveFrom||null,effectiveTo:values.effectiveTo||null});onMessage('Position assignment saved; the affected user session was revoked so new authority takes effect on next sign-in.');await reload();}
-        catch(error){onMessage(displayError(error));}finally{setBusy(false);}
-      }}>
-        <select name="userId" required defaultValue=""><option value="" disabled>Assign to account…</option>{accounts.map((a:any)=><option key={a.id} value={a.id}>{a.email}</option>)}</select>
-        <select name="isPrimary" defaultValue="no"><option value="no">Additional position</option><option value="yes">Primary position</option></select>
-        <input name="effectiveFrom" type="date" aria-label="Effective from"/>
-        <input name="effectiveTo" type="date" aria-label="Effective to"/>
-        <button className="campus-button secondary" disabled={busy}>Assign position</button>
-      </form>
-      {position.assignees?.length>0&&<div>{position.assignees.map((a:any)=><div key={a.user_id} className="campus-record"><span>{a.email}{a.is_primary?' · Primary':''}{!a.active?' · Inactive':''}</span>{a.active&&<button type="button" className="campus-button secondary" onClick={async()=>{setBusy(true);try{await request('/api/identity/positions/'+position.id+'/assign/'+a.user_id,'DELETE');onMessage('Position assignment ended and audited.');await reload();}catch(error){onMessage(displayError(error));}finally{setBusy(false);}}}>End assignment</button>}</div>)}</div>}
-      <button type="button" className="campus-button secondary" disabled={busy} onClick={async()=>{setBusy(true);try{await request('/api/identity/positions/'+position.id,'PATCH',{active:!position.active});onMessage(position.active?'Position archived. Historical assignments and audit records were preserved.':'Position reactivated.');await reload();}catch(error){onMessage(displayError(error));}finally{setBusy(false);}}}>{position.active?'Archive position':'Reactivate position'}</button>
-    </>}/>
-  </Panel>;
 }
 
 export function AccountCenter({ user }: any) {
@@ -922,6 +759,7 @@ export function AccountCenter({ user }: any) {
       </Panel>
       {isAdmin && (
         <>
+          <InstitutionalAuthorityManager accounts={accounts} onMessage={setMsg} />
           <Panel title="Account invitations">
             <form
               className="campus-form"
