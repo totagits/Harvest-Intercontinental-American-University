@@ -96,6 +96,11 @@ export type Actor = {
   role: string;
   title: string;
   department?: string;
+  authority?: {
+    positions:any[];
+    functionalRoles:string[];
+    permissions:string[];
+  };
 };
 export const actorOf = (res: Response): Actor | undefined => res.locals.actor;
 const staff = ['super_admin', 'registrar', 'dean', 'lecturer'];
