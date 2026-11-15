@@ -49,18 +49,21 @@ export function PortalLoginModal({
             try {
               if (activation && password !== confirm)
                 throw Error('Passwords do not match.');
-              const response = await fetch(
-                activation ? '/api/auth/activate' : '/api/auth/login',
-                {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(
-                    activation ? { token, password } : { email, password },
-                  ),
-                },
-              );
-              const data = await response.json();
-              if (!response.ok) throw Error(data.error);
+              const authPath=activation ? '/api/auth/activate' : '/api/auth/login';
+              const authUrl=new URL(authPath,window.location.origin).toString();
+              const response = await fetch(authUrl,{
+                method:'POST',
+                credentials:'same-origin',
+                cache:'no-store',
+                headers:{'Content-Type':'application/json','Accept':'application/json'},
+                body:JSON.stringify(activation?{token,password}:{email,password}),
+              });
+              const contentType=response.headers.get('content-type')||'';
+              const data=contentType.includes('application/json')
+                ? await response.json()
+                : null;
+              if(!data)throw Error('The university authentication service returned an invalid response. Refresh the Staff App and try again.');
+              if(!response.ok)throw Error(data.error||'Unable to sign in.');
               if (activation) {
                 // Activation is complete. Remove its marker so refresh or a
                 // copied address cannot reopen a stale password-setup flow.
@@ -141,7 +144,7 @@ export function PortalLoginModal({
         {!activation && <button type="button" className="rounded-md border border-[#C39A53] bg-[#FFF9ED] px-4 py-2.5 text-sm font-semibold text-[#4A1249] hover:bg-[#FBE9C7] disabled:opacity-50" disabled={busy} onClick={async()=>{
           if(!email.trim()){setMessage('Enter your university email above first.');return;}
           setBusy(true);
-          try{const response=await fetch('/api/auth/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});const result=await response.json();if(!response.ok)throw Error(result.error);setMessage('If your account can receive recovery email, a private link will be sent. Otherwise contact the university administrator.');}catch(error){setMessage(error instanceof Error?error.message:'Could not request account recovery.');}finally{setBusy(false);}
+          try{const response=await fetch(new URL('/api/auth/forgot-password',window.location.origin).toString(),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({email})});const contentType=response.headers.get('content-type')||'';const result=contentType.includes('application/json')?await response.json():null;if(!result)throw Error('The university authentication service returned an invalid response. Refresh the Staff App and try again.');if(!response.ok)throw Error(result.error);setMessage('If your account can receive recovery email, a private link will be sent. Otherwise contact the university administrator.');}catch(error){setMessage(error instanceof Error?error.message:'Could not request account recovery.');}finally{setBusy(false);}
         }}>Request password recovery</button>}
         <button type="button" className="rounded-md border border-[#4A1249] px-4 py-2.5 text-sm font-semibold text-[#4A1249] hover:bg-purple-50" onClick={onClose}>
           Back to university website
