@@ -19,6 +19,44 @@ export const roles = [
   'admissions_officer',
   'alumni',
 ] as const;
+
+export const functionalRoleCatalog = [
+  {key:'executive_leadership',label:'Executive Leadership',permissions:['governance.view','analytics.executive','policy.approve']},
+  {key:'board_governance',label:'Board / Regents Governance',permissions:['governance.view','governance.resolve','budget.approve_major','policy.approve_major']},
+  {key:'legal_compliance',label:'Legal & Compliance',permissions:['legal.review','contracts.review','compliance.view','risk.review']},
+  {key:'academic_executive',label:'Academic Executive',permissions:['academics.view','curriculum.approve','faculty.review','accreditation.view']},
+  {key:'academic_dean',label:'Academic Dean',permissions:['academics.view','curriculum.review','faculty.review','registration.exception_recommend']},
+  {key:'department_lead',label:'Department Leadership',permissions:['academics.view','schedule.manage','faculty.review','registration.exception_recommend']},
+  {key:'academic_advisor',label:'Academic Advisor',permissions:['student.academic_view','registration.recommend','degree_audit.view']},
+  {key:'registrar_review',label:'Registrar Review',permissions:['registration.review','registration.return','registration.reject','records.view']},
+  {key:'registrar_commit',label:'Registrar Commit Authority',permissions:['registration.approve','registration.commit','records.manage','transcript.issue','degree_audit.manage']},
+  {key:'admissions_management',label:'Admissions Management',permissions:['admissions.view','admissions.review','admissions.decide']},
+  {key:'financial_aid',label:'Financial Aid',permissions:['aid.view','aid.prepare','aid.review']},
+  {key:'finance_executive',label:'Finance Executive',permissions:['finance.view','budget.view','finance.approve_high_value','audit.financial_view']},
+  {key:'controller',label:'Controller / Accounting',permissions:['finance.view','ledger.manage','journal.manage','bank_reconciliation.manage','period_close.manage']},
+  {key:'bursar',label:'Bursar / Student Accounts',permissions:['student_billing.view','student_billing.manage','payment.record','payment.reconcile','refund.review']},
+  {key:'refund_payout',label:'Refund Payout Officer',permissions:['refund.pay']},
+  {key:'human_resources',label:'Human Resources',permissions:['hr.view','hr.manage','recruitment.manage','compensation.view']},
+  {key:'procurement',label:'Procurement & Auxiliary Services',permissions:['procurement.view','procurement.manage','vendor.manage']},
+  {key:'facilities',label:'Facilities & Campus Operations',permissions:['facilities.view','facilities.manage']},
+  {key:'campus_safety',label:'Campus Safety & Security',permissions:['security.view','security.manage','emergency.manage']},
+  {key:'cio',label:'Enterprise IT Leadership',permissions:['technology.view','integrations.manage','erp.configure']},
+  {key:'ciso',label:'Information Security',permissions:['security.audit','security.configure','access.review']},
+  {key:'erp_admin',label:'ERP Administrator',permissions:['erp.configure','accounts.manage','roles.manage']},
+  {key:'educational_technology',label:'Educational Technology',permissions:['lms.manage','classroom.manage','instructional_design.manage']},
+  {key:'institutional_research',label:'Institutional Research & Accreditation',permissions:['analytics.view','accreditation.manage','reporting.manage']},
+  {key:'library_admin',label:'Library & Learning Resources',permissions:['library.manage','resources.manage']},
+  {key:'student_affairs',label:'Student Affairs',permissions:['student_services.view','student_services.manage','conduct.manage']},
+  {key:'health_wellness',label:'Counseling, Health & Accessibility',permissions:['wellness.manage','accessibility.manage']},
+  {key:'career_services',label:'Career Services',permissions:['career.manage','employer_relations.manage']},
+  {key:'research_admin',label:'Research & Innovation',permissions:['research.manage','grants.manage','irb.manage','technology_transfer.manage']},
+  {key:'advancement',label:'Advancement & Development',permissions:['advancement.manage','alumni.manage','fundraising.manage']},
+  {key:'communications',label:'Marketing & Communications',permissions:['communications.manage','website.publish','brand.manage']},
+  {key:'website_editorial',label:'Website Editorial',permissions:['website.edit','website.review']},
+  {key:'faculty',label:'Faculty / Lecturer',permissions:['course.view','course.teach','attendance.manage','grade.prepare']},
+  {key:'student',label:'Student',permissions:['student.self_service']},
+] as const;
+export const functionalRoleKeys = new Set(functionalRoleCatalog.map(role=>role.key));
 export const digest = (value: string) =>
   crypto.createHash('sha256').update(value).digest('hex');
 export async function hashPassword(password: string) {
@@ -105,6 +143,22 @@ export function installIdentity(
     CREATE TABLE IF NOT EXISTS invites(hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES accounts(id),expires INTEGER NOT NULL,used INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS attempts(key TEXT PRIMARY KEY,count INTEGER NOT NULL,until_time INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS security_audit(id INTEGER PRIMARY KEY AUTOINCREMENT,at TEXT NOT NULL,actor TEXT NOT NULL,action TEXT NOT NULL,details TEXT NOT NULL,previous_hash TEXT NOT NULL,entry_hash TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS positions(
+      id TEXT PRIMARY KEY,title TEXT NOT NULL,code TEXT NOT NULL UNIQUE,department TEXT NOT NULL DEFAULT '',
+      scope_type TEXT NOT NULL DEFAULT 'university',scope_value TEXT NOT NULL DEFAULT '',
+      approval_limit_cents INTEGER,can_delegate INTEGER NOT NULL DEFAULT 0,active INTEGER NOT NULL DEFAULT 1,
+      created_by TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS position_roles(
+      position_id TEXT NOT NULL REFERENCES positions(id) ON DELETE CASCADE,
+      role_key TEXT NOT NULL,PRIMARY KEY(position_id,role_key)
+    );
+    CREATE TABLE IF NOT EXISTS user_positions(
+      user_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+      position_id TEXT NOT NULL REFERENCES positions(id) ON DELETE CASCADE,
+      is_primary INTEGER NOT NULL DEFAULT 0,effective_from TEXT,effective_to TEXT,active INTEGER NOT NULL DEFAULT 1,
+      assigned_by TEXT NOT NULL,assigned_at TEXT NOT NULL,PRIMARY KEY(user_id,position_id)
+    );
   `);
   const secure = options.secure ?? process.env.NODE_ENV === 'production';
   const cookieName = secure ? '__Host-gu_session' : 'gu_session';
@@ -163,10 +217,24 @@ export function installIdentity(
         )
         .run(bootstrapHash!, owner.id, Date.now() + 48 * 3600000);
   }
+  const authorityFor = (userId:string) => {
+    const positions = sql.prepare(`SELECT p.*,up.is_primary,up.effective_from,up.effective_to
+      FROM user_positions up JOIN positions p ON p.id=up.position_id
+      WHERE up.user_id=? AND up.active=1 AND p.active=1
+      AND (up.effective_from IS NULL OR up.effective_from<=date('now'))
+      AND (up.effective_to IS NULL OR up.effective_to>=date('now'))
+      ORDER BY up.is_primary DESC,p.title`).all(userId) as any[];
+    const roles = positions.flatMap((position:any)=>
+      (sql.prepare('SELECT role_key FROM position_roles WHERE position_id=? ORDER BY role_key').all(position.id) as any[])
+        .map(row=>row.role_key));
+    const permissions = Array.from(new Set(roles.flatMap((key:string)=>
+      functionalRoleCatalog.find(role=>role.key===key)?.permissions||[])));
+    return {positions, functionalRoles:Array.from(new Set(roles)), permissions};
+  };
   const publicActor = (account: any): Actor | null => {
     const profile = options.users().find((u) => u.id === account?.id);
     return profile && account && !account.disabled
-      ? { ...profile, role: account.role, email: account.email }
+      ? { ...profile, role: account.role, email: account.email, authority:authorityFor(account.id) }
       : null;
   };
   const cookieValue = (req: Request) =>
@@ -712,6 +780,109 @@ export function installIdentity(
       }),
     );
     return res.json({ success: true });
+  });
+  app.get('/api/identity/authority', (_req,res)=>{
+    const actor=actorOf(res)!;
+    if(actor.role!=='super_admin')return res.sendStatus(403);
+    const positions=(sql.prepare('SELECT * FROM positions ORDER BY active DESC,title').all() as any[]).map((position:any)=>({
+      ...position,
+      roles:(sql.prepare('SELECT role_key FROM position_roles WHERE position_id=? ORDER BY role_key').all(position.id) as any[]).map(row=>row.role_key),
+      assignees:(sql.prepare(`SELECT up.user_id,up.is_primary,up.effective_from,up.effective_to,up.active,a.email
+        FROM user_positions up JOIN accounts a ON a.id=up.user_id WHERE up.position_id=? ORDER BY a.email`).all(position.id) as any[])
+    }));
+    return res.json({roles:functionalRoleCatalog,positions});
+  });
+  app.post('/api/identity/positions',(req,res)=>{
+    const actor=actorOf(res)!;
+    if(actor.role!=='super_admin')return res.sendStatus(403);
+    const title=String(req.body.title||'').trim().slice(0,120);
+    const code=String(req.body.code||'').trim().toLowerCase().replace(/[^a-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80);
+    const department=String(req.body.department||'').trim().slice(0,120);
+    const scopeType=String(req.body.scopeType||'university').trim();
+    const scopeValue=String(req.body.scopeValue||'').trim().slice(0,160);
+    const roleKeys=Array.isArray(req.body.roles)?Array.from(new Set(req.body.roles.filter((key:any)=>typeof key==='string'))):[];
+    const approvalLimit=req.body.approvalLimitCents===null||req.body.approvalLimitCents===''?null:Number(req.body.approvalLimitCents);
+    if(!title||!code||!['university','campus','college','department','program','course'].includes(scopeType)||
+      !roleKeys.length||!roleKeys.every((key:any)=>functionalRoleKeys.has(key))||
+      (approvalLimit!==null&&(!Number.isInteger(approvalLimit)||approvalLimit<0)))
+      return res.status(400).json({error:'Provide a position title, unique code, valid scope and at least one supported functional role.'});
+    const id=crypto.randomUUID(),stamp=new Date().toISOString();
+    try{
+      sql.exec('BEGIN IMMEDIATE');
+      sql.prepare(`INSERT INTO positions(id,title,code,department,scope_type,scope_value,approval_limit_cents,can_delegate,active,created_by,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,?,?,1,?,?,?)`).run(id,title,code,department,scopeType,scopeValue,approvalLimit,req.body.canDelegate?1:0,actor.id,stamp,stamp);
+      const insertRole=sql.prepare('INSERT INTO position_roles(position_id,role_key) VALUES(?,?)');
+      for(const roleKey of roleKeys)insertRole.run(id,roleKey);
+      sql.exec('COMMIT');
+    }catch(error){
+      try{sql.exec('ROLLBACK');}catch{}
+      return res.status(409).json({error:'Position code already exists or the position could not be created.'});
+    }
+    log(actor.id,'POSITION_CREATED',JSON.stringify({id,title,code,roles:roleKeys,scopeType,scopeValue}));
+    return res.status(201).json({id,title,code});
+  });
+  app.patch('/api/identity/positions/:id',(req,res)=>{
+    const actor=actorOf(res)!;
+    if(actor.role!=='super_admin')return res.sendStatus(403);
+    const current=sql.prepare('SELECT * FROM positions WHERE id=?').get(req.params.id) as any;
+    if(!current)return res.sendStatus(404);
+    const title=String(req.body.title??current.title).trim().slice(0,120);
+    const department=String(req.body.department??current.department).trim().slice(0,120);
+    const scopeType=String(req.body.scopeType??current.scope_type);
+    const scopeValue=String(req.body.scopeValue??current.scope_value).trim().slice(0,160);
+    const active=typeof req.body.active==='boolean'?req.body.active:!!current.active;
+    const canDelegate=typeof req.body.canDelegate==='boolean'?req.body.canDelegate:!!current.can_delegate;
+    const roleKeys=Array.isArray(req.body.roles)?Array.from(new Set(req.body.roles.filter((key:any)=>typeof key==='string'))):
+      (sql.prepare('SELECT role_key FROM position_roles WHERE position_id=?').all(current.id) as any[]).map(row=>row.role_key);
+    const approvalLimit=req.body.approvalLimitCents===null||req.body.approvalLimitCents===''?null:
+      req.body.approvalLimitCents===undefined?current.approval_limit_cents:Number(req.body.approvalLimitCents);
+    if(!title||!['university','campus','college','department','program','course'].includes(scopeType)||
+      !roleKeys.length||!roleKeys.every((key:any)=>functionalRoleKeys.has(key))||
+      (approvalLimit!==null&&(!Number.isInteger(approvalLimit)||approvalLimit<0)))
+      return res.status(400).json({error:'Invalid position update.'});
+    const stamp=new Date().toISOString();
+    sql.exec('BEGIN IMMEDIATE');
+    try{
+      sql.prepare(`UPDATE positions SET title=?,department=?,scope_type=?,scope_value=?,approval_limit_cents=?,can_delegate=?,active=?,updated_at=? WHERE id=?`)
+        .run(title,department,scopeType,scopeValue,approvalLimit,canDelegate?1:0,active?1:0,stamp,current.id);
+      sql.prepare('DELETE FROM position_roles WHERE position_id=?').run(current.id);
+      const insertRole=sql.prepare('INSERT INTO position_roles(position_id,role_key) VALUES(?,?)');
+      for(const roleKey of roleKeys)insertRole.run(current.id,roleKey);
+      sql.exec('COMMIT');
+    }catch(error){sql.exec('ROLLBACK');throw error;}
+    log(actor.id,'POSITION_UPDATED',JSON.stringify({id:current.id,title,roles:roleKeys,active}));
+    return res.json({success:true});
+  });
+  app.post('/api/identity/positions/:id/assign',(req,res)=>{
+    const actor=actorOf(res)!;
+    if(actor.role!=='super_admin')return res.sendStatus(403);
+    const position=sql.prepare('SELECT * FROM positions WHERE id=?').get(req.params.id) as any;
+    const account=sql.prepare('SELECT * FROM accounts WHERE id=?').get(String(req.body.userId||'')) as any;
+    if(!position||!account)return res.status(400).json({error:'Choose a valid position and account.'});
+    const effectiveFrom=req.body.effectiveFrom?String(req.body.effectiveFrom):null;
+    const effectiveTo=req.body.effectiveTo?String(req.body.effectiveTo):null;
+    if((effectiveFrom&&!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom))||(effectiveTo&&!/^\d{4}-\d{2}-\d{2}$/.test(effectiveTo))||
+      (effectiveFrom&&effectiveTo&&effectiveFrom>effectiveTo))
+      return res.status(400).json({error:'Provide valid appointment effective dates.'});
+    if(req.body.isPrimary)sql.prepare('UPDATE user_positions SET is_primary=0 WHERE user_id=?').run(account.id);
+    sql.prepare(`INSERT INTO user_positions(user_id,position_id,is_primary,effective_from,effective_to,active,assigned_by,assigned_at)
+      VALUES(?,?,?,?,?,1,?,?) ON CONFLICT(user_id,position_id) DO UPDATE SET
+      is_primary=excluded.is_primary,effective_from=excluded.effective_from,effective_to=excluded.effective_to,
+      active=1,assigned_by=excluded.assigned_by,assigned_at=excluded.assigned_at`)
+      .run(account.id,position.id,req.body.isPrimary?1:0,effectiveFrom,effectiveTo,actor.id,new Date().toISOString());
+    sql.prepare('DELETE FROM sessions WHERE user_id=?').run(account.id);
+    log(actor.id,'POSITION_ASSIGNED',JSON.stringify({userId:account.id,positionId:position.id,isPrimary:!!req.body.isPrimary,effectiveFrom,effectiveTo}));
+    return res.json({success:true});
+  });
+  app.delete('/api/identity/positions/:positionId/assign/:userId',(req,res)=>{
+    const actor=actorOf(res)!;
+    if(actor.role!=='super_admin')return res.sendStatus(403);
+    const existing=sql.prepare('SELECT * FROM user_positions WHERE user_id=? AND position_id=?').get(req.params.userId,req.params.positionId) as any;
+    if(!existing)return res.sendStatus(404);
+    sql.prepare('UPDATE user_positions SET active=0,is_primary=0 WHERE user_id=? AND position_id=?').run(req.params.userId,req.params.positionId);
+    sql.prepare('DELETE FROM sessions WHERE user_id=?').run(req.params.userId);
+    log(actor.id,'POSITION_UNASSIGNED',JSON.stringify({userId:req.params.userId,positionId:req.params.positionId}));
+    return res.json({success:true});
   });
   app.get('/api/identity/audit', (_req, res) => {
     if (!administrators.includes(res.locals.actor.role))
