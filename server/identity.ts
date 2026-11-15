@@ -839,8 +839,8 @@ export function installIdentity(
     let created=0;
     sql.exec('BEGIN IMMEDIATE');
     try{
-      const insertPosition=sql.prepare(\`INSERT OR IGNORE INTO positions(id,title,code,department,scope_type,scope_value,approval_limit_cents,can_delegate,active,created_by,created_at,updated_at)
-        VALUES(?,?,?,?,?,'',NULL,0,1,?,?,?)\`);
+      const insertPosition=sql.prepare(`INSERT OR IGNORE INTO positions(id,title,code,department,scope_type,scope_value,approval_limit_cents,can_delegate,active,created_by,created_at,updated_at)
+        VALUES(?,?,?,?,?,'',NULL,0,1,?,?,?)`);
       const insertRole=sql.prepare('INSERT OR IGNORE INTO position_roles(position_id,role_key) VALUES(?,?)');
       for(const template of standardPositionCatalog){
         let row=sql.prepare('SELECT id FROM positions WHERE code=?').get(template.code) as any;
