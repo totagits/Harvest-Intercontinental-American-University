@@ -463,7 +463,7 @@ function InstitutionalAuthorityManager({accounts,onMessage}:{accounts:any[];onMe
         </button>
       </div>
 
-      <form className="campus-form" onSubmit={async e=>{
+      <form className="campus-form" style={{display:'block'}} onSubmit={async e=>{
         e.preventDefault();setBusy(true);const form=e.currentTarget;
         try{
           const values=Object.fromEntries(new FormData(form));
@@ -499,7 +499,9 @@ function InstitutionalAuthorityManager({accounts,onMessage}:{accounts:any[];onMe
           </div>
         </fieldset>
 
-        <button className="campus-button" style={{marginTop:18}} disabled={busy||selectedRoles.length===0}>{busy?'Saving…':'Create position'}</button>
+        <div className="campus-actions" style={{marginTop:18}}>
+          <button type="submit" className="campus-button" disabled={busy||selectedRoles.length===0}>{busy?'Saving…':'Create position'}</button>
+        </div>
       </form>
 
       <div style={{marginTop:24}}>
