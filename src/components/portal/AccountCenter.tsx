@@ -444,199 +444,85 @@ function InstitutionalAuthorityManager({accounts,onMessage}:{accounts:any[];onMe
   const reload=()=>request('/api/identity/authority').then(setData).catch(e=>onMessage(displayError(e)));
   useEffect(()=>{void reload();},[]);
   const toggleRole=(key:string)=>setSelectedRoles(current=>current.includes(key)?current.filter(x=>x!==key):[...current,key]);
-
+  const gridStyle:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:12};
+  const cardStyle:React.CSSProperties={display:'grid',gridTemplateColumns:'22px minmax(0,1fr)',gap:10,alignItems:'start',padding:14,border:'1px solid #e5dce8',borderRadius:12,background:'#fff'};
   return (
-    <Panel
-      title="Institutional Positions & RBAC"
-      detail="Create university positions, attach functional roles, define organizational scope and approval authority, then assign positions to accounts. Existing legacy account roles remain active during migration."
-    >
-      <form
-        className="campus-form"
-        onSubmit={async (e)=>{
-          e.preventDefault();
+    <Panel title="Institutional Positions & RBAC" detail="Create university positions, attach functional roles, define organizational scope and approval authority, then assign positions to accounts. Existing legacy account roles remain active during migration.">
+      <div className="campus-actions" style={{marginBottom:16}}>
+        <button type="button" className="campus-button secondary" disabled={busy} onClick={async()=>{
           setBusy(true);
-          const form=e.currentTarget;
           try{
-            const values=Object.fromEntries(new FormData(form));
-            await request('/api/identity/positions','POST',{
-              title:values.title,
-              code:values.code,
-              department:values.department,
-              scopeType:values.scopeType,
-              scopeValue:values.scopeValue,
-              approvalLimitCents:values.approvalLimitUSD ? Math.round(Number(values.approvalLimitUSD)*100) : null,
-              canDelegate:values.canDelegate==='yes',
-              roles:selectedRoles,
-            });
-            onMessage('Institutional position created and audited.');
-            setSelectedRoles(['registrar_review']);
-            form.reset();
+            const result=await request('/api/identity/positions/bootstrap','POST',{});
+            onMessage(result.created>0
+              ? 'Created '+result.created+' standard HIAU institutional positions.'
+              : 'The standard HIAU institutional position catalog is already present.');
             await reload();
-          }catch(error){
-            onMessage(displayError(error));
-          }finally{
-            setBusy(false);
-          }
-        }}
-      >
-        <div className="campus-filters">
+          }catch(error){onMessage(displayError(error));}finally{setBusy(false);}
+        }}>
+          Create HIAU standard position catalog
+        </button>
+      </div>
+
+      <form className="campus-form" onSubmit={async e=>{
+        e.preventDefault();setBusy(true);const form=e.currentTarget;
+        try{
+          const values=Object.fromEntries(new FormData(form));
+          await request('/api/identity/positions','POST',{
+            title:values.title,code:values.code,department:values.department,
+            scopeType:values.scopeType,scopeValue:values.scopeValue,
+            approvalLimitCents:values.approvalLimitUSD?Math.round(Number(values.approvalLimitUSD)*100):null,
+            canDelegate:values.canDelegate==='yes',roles:selectedRoles
+          });
+          onMessage('Institutional position created and audited.');
+          setSelectedRoles(['registrar_review']);form.reset();await reload();
+        }catch(error){onMessage(displayError(error));}finally{setBusy(false);}
+      }}>
+        <h3>Position details</h3>
+        <div style={gridStyle}>
           <label>Position title<input name="title" required placeholder="e.g. Assistant Registrar"/></label>
           <label>Position code<input name="code" required placeholder="assistant-registrar"/></label>
           <label>Department / office<input name="department" placeholder="Office of the Registrar"/></label>
-          <label>
-            Scope
-            <select name="scopeType" defaultValue="university">
-              <option value="university">University-wide</option>
-              <option value="campus">Campus</option>
-              <option value="college">College / School</option>
-              <option value="department">Department</option>
-              <option value="program">Program</option>
-              <option value="course">Course / Section</option>
-            </select>
-          </label>
+          <label>Scope<select name="scopeType" defaultValue="university"><option value="university">University-wide</option><option value="campus">Campus</option><option value="college">College / School</option><option value="department">Department</option><option value="program">Program</option><option value="course">Course / Section</option></select></label>
           <label>Scope value<input name="scopeValue" placeholder="e.g. College of Engineering"/></label>
           <label>Approval limit (USD)<input name="approvalLimitUSD" type="number" min="0" step="0.01" placeholder="Optional"/></label>
-          <label>
-            Delegation
-            <select name="canDelegate" defaultValue="no">
-              <option value="no">Cannot delegate</option>
-              <option value="yes">May delegate authority</option>
-            </select>
-          </label>
+          <label>Delegation<select name="canDelegate" defaultValue="no"><option value="no">Cannot delegate</option><option value="yes">May delegate authority</option></select></label>
         </div>
 
-        <fieldset>
-          <legend>Functional roles</legend>
-          <div className="campus-filters">
-            {data.roles.map((role:any)=>(
-              <label key={role.key} className="campus-record">
-                <input
-                  type="checkbox"
-                  checked={selectedRoles.includes(role.key)}
-                  onChange={()=>toggleRole(role.key)}
-                />
-                <strong>{role.label}</strong>
-                <span className="campus-muted">{role.permissions.join(', ')}</span>
-              </label>
-            ))}
+        <fieldset style={{marginTop:22}}>
+          <legend><strong>Functional roles</strong></legend>
+          <p className="campus-muted">Select one or more functional roles. Permissions remain server-enforced and can later be scoped to the position's university, college, department, program or course assignment.</p>
+          <div style={gridStyle}>
+            {data.roles.map((role:any)=><label key={role.key} style={cardStyle}>
+              <input type="checkbox" checked={selectedRoles.includes(role.key)} onChange={()=>toggleRole(role.key)}/>
+              <span style={{minWidth:0}}><strong style={{display:'block',marginBottom:6}}>{role.label}</strong><span className="campus-muted" style={{display:'block',overflowWrap:'anywhere'}}>{role.permissions.join(', ')}</span></span>
+            </label>)}
           </div>
         </fieldset>
 
-        <button className="campus-button" disabled={busy||selectedRoles.length===0}>
-          {busy?'Creating…':'Create position'}
-        </button>
+        <button className="campus-button" style={{marginTop:18}} disabled={busy||selectedRoles.length===0}>{busy?'Saving…':'Create position'}</button>
       </form>
 
-      <RecordList
-        items={data.positions}
-        render={(position:any)=>(
-          <>
-            <strong>{position.title}</strong>
-            <p>
-              {position.code} · {position.department||'No department'} · Scope: {position.scope_type}
-              {position.scope_value?' — '+position.scope_value:''} · {position.active?'Active':'Archived'}
-            </p>
-            <p className="campus-muted">
-              Roles: {position.roles.join(', ')||'None'}
-              {position.approval_limit_cents!==null && position.approval_limit_cents!==undefined
-                ? ' · Approval limit USD '+(Number(position.approval_limit_cents)/100).toFixed(2)
-                : ''}
-              {position.can_delegate?' · Delegation allowed':''}
-            </p>
-
-            <form
-              className="campus-filters"
-              onSubmit={async (e)=>{
-                e.preventDefault();
-                const values=Object.fromEntries(new FormData(e.currentTarget));
-                setBusy(true);
-                try{
-                  await request('/api/identity/positions/'+position.id+'/assign','POST',{
-                    userId:values.userId,
-                    isPrimary:values.isPrimary==='yes',
-                    effectiveFrom:values.effectiveFrom||null,
-                    effectiveTo:values.effectiveTo||null,
-                  });
-                  onMessage('Position assignment saved; the affected user session was revoked so new authority takes effect on next sign-in.');
-                  await reload();
-                }catch(error){
-                  onMessage(displayError(error));
-                }finally{
-                  setBusy(false);
-                }
-              }}
-            >
-              <select name="userId" required defaultValue="">
-                <option value="" disabled>Assign to account…</option>
-                {accounts.map((account:any)=><option key={account.id} value={account.id}>{account.email}</option>)}
-              </select>
-              <select name="isPrimary" defaultValue="no">
-                <option value="no">Additional position</option>
-                <option value="yes">Primary position</option>
-              </select>
-              <input name="effectiveFrom" type="date" aria-label="Effective from"/>
-              <input name="effectiveTo" type="date" aria-label="Effective to"/>
-              <button className="campus-button secondary" disabled={busy}>Assign position</button>
-            </form>
-
-            {position.assignees?.length>0 && (
-              <div>
-                {position.assignees.map((assignee:any)=>(
-                  <div key={assignee.user_id} className="campus-record">
-                    <span>
-                      {assignee.email}
-                      {assignee.is_primary?' · Primary':''}
-                      {!assignee.active?' · Inactive':''}
-                    </span>
-                    {assignee.active && (
-                      <button
-                        type="button"
-                        className="campus-button secondary"
-                        onClick={async()=>{
-                          setBusy(true);
-                          try{
-                            await request('/api/identity/positions/'+position.id+'/assign/'+assignee.user_id,'DELETE');
-                            onMessage('Position assignment ended and audited.');
-                            await reload();
-                          }catch(error){
-                            onMessage(displayError(error));
-                          }finally{
-                            setBusy(false);
-                          }
-                        }}
-                      >
-                        End assignment
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <button
-              type="button"
-              className="campus-button secondary"
-              disabled={busy}
-              onClick={async()=>{
-                setBusy(true);
-                try{
-                  await request('/api/identity/positions/'+position.id,'PATCH',{active:!position.active});
-                  onMessage(position.active
-                    ? 'Position archived. Historical assignments and audit records were preserved.'
-                    : 'Position reactivated.');
-                  await reload();
-                }catch(error){
-                  onMessage(displayError(error));
-                }finally{
-                  setBusy(false);
-                }
-              }}
-            >
-              {position.active?'Archive position':'Reactivate position'}
-            </button>
-          </>
-        )}
-      />
+      <div style={{marginTop:24}}>
+        <h3>Institutional position records</h3>
+        <RecordList items={data.positions} render={(position:any)=><>
+          <strong>{position.title}</strong>
+          <p>{position.code} · {position.department||'No department'} · Scope: {position.scope_type}{position.scope_value?' — '+position.scope_value:''} · {position.active?'Active':'Archived'}</p>
+          <p className="campus-muted">Roles: {position.roles.join(', ')||'None'}{position.approval_limit_cents!==null&&position.approval_limit_cents!==undefined?' · Approval limit USD '+(Number(position.approval_limit_cents)/100).toFixed(2):''}{position.can_delegate?' · Delegation allowed':''}</p>
+          <form style={gridStyle} onSubmit={async e=>{
+            e.preventDefault();const values=Object.fromEntries(new FormData(e.currentTarget));setBusy(true);
+            try{await request('/api/identity/positions/'+position.id+'/assign','POST',{userId:values.userId,isPrimary:values.isPrimary==='yes',effectiveFrom:values.effectiveFrom||null,effectiveTo:values.effectiveTo||null});onMessage('Position assignment saved; the affected user session was revoked so new authority takes effect on next sign-in.');await reload();}
+            catch(error){onMessage(displayError(error));}finally{setBusy(false);}
+          }}>
+            <select name="userId" required defaultValue=""><option value="" disabled>Assign to account…</option>{accounts.map((a:any)=><option key={a.id} value={a.id}>{a.email}</option>)}</select>
+            <select name="isPrimary" defaultValue="no"><option value="no">Additional position</option><option value="yes">Primary position</option></select>
+            <input name="effectiveFrom" type="date" aria-label="Effective from"/>
+            <input name="effectiveTo" type="date" aria-label="Effective to"/>
+            <button className="campus-button secondary" disabled={busy}>Assign position</button>
+          </form>
+          {position.assignees?.length>0&&<div style={{marginTop:10}}>{position.assignees.map((a:any)=><div key={a.user_id} className="campus-record"><span>{a.email}{a.is_primary?' · Primary':''}{!a.active?' · Inactive':''}</span>{a.active&&<button type="button" className="campus-button secondary" onClick={async()=>{setBusy(true);try{await request('/api/identity/positions/'+position.id+'/assign/'+a.user_id,'DELETE');onMessage('Position assignment ended and audited.');await reload();}catch(error){onMessage(displayError(error));}finally{setBusy(false);}}}>End assignment</button>}</div>)}</div>}
+          <button type="button" className="campus-button secondary" style={{marginTop:10}} disabled={busy} onClick={async()=>{setBusy(true);try{await request('/api/identity/positions/'+position.id,'PATCH',{active:!position.active});onMessage(position.active?'Position archived. Historical assignments and audit records were preserved.':'Position reactivated.');await reload();}catch(error){onMessage(displayError(error));}finally{setBusy(false);}}}>{position.active?'Archive position':'Reactivate position'}</button>
+        </>}/>
+      </div>
     </Panel>
   );
 }
