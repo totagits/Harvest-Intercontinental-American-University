@@ -12,6 +12,8 @@ test('Add/Drop workflow is reachable in Student, Registrar and Finance workspace
  assert.match(app,/StudentAddDropWorkflow currentUser=\{currentUser\} mode="finance"/);
  assert.match(ui,/x-csrf-token/);
  assert.match(ui,/Submit Add\/Drop request/);
+ assert.match(ui,/Submitting…/);
+ assert.match(ui,/aria-live="polite"/);
  assert.match(ui,/Commit approved Add\/Drop/);
  assert.match(ui,/Post Add\/Drop tuition invoice/);
  assert.match(server,/STG-104/);
