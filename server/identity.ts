@@ -215,8 +215,26 @@ export function installIdentity(
         'INSERT INTO attempts(key,count,until_time) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN until_time<? THEN 1 ELSE count+1 END,until_time=CASE WHEN until_time<? THEN excluded.until_time ELSE until_time END',
       )
       .run(key, Date.now() + 15 * 60000, Date.now(), Date.now());
-  const sameOrigin = (req: Request) =>
-    req.get('origin') === new URL(origin).origin;
+  const sameOrigin = (req: Request) => {
+    const rawOrigin = req.get('origin');
+    if (!rawOrigin) return false;
+    try {
+      const candidate = new URL(rawOrigin);
+      const configured = new URL(origin);
+      if (candidate.origin === configured.origin) return true;
+
+      // Coolify/reverse-proxy deployments can legitimately serve the same
+      // application from a staging hostname that differs from APP_URL. Keep
+      // the CSRF boundary strict by accepting only an Origin whose host
+      // exactly matches the host receiving this request.
+      const requestHost = req.get('host');
+      if (!requestHost || candidate.host !== requestHost) return false;
+      if (secure && candidate.protocol !== 'https:') return false;
+      return candidate.protocol === 'https:' || candidate.protocol === 'http:';
+    } catch {
+      return false;
+    }
+  };
   app.disable('x-powered-by');
   app.use((req, res, next) => {
     res.set({
