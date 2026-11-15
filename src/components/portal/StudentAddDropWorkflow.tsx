@@ -243,12 +243,13 @@ export const StudentAddDropWorkflow:React.FC<{currentUser:UserProfile;mode:'stud
    <div className="mt-4 space-y-4">{requests.map((r:any)=><article key={r.id} className="rounded-xl border border-[#E6DCE7] p-4">
     <h3 className="font-bold">{r.student_number} — {r.full_name}</h3><p className="text-sm text-slate-600">{r.term_title} · Status {statusLabel(r.status)}</p>
     <p className="mt-2 text-sm">{r.reason}</p>
-    {r.reviewSummary?.valid&&<div className="mt-3 grid gap-2 rounded-lg border border-[#E6DCE7] bg-[#FAF8FB] p-3 text-sm sm:grid-cols-2 lg:grid-cols-5">
+    {r.reviewSummary?.valid&&<div className="mt-3 grid gap-2 rounded-lg border border-[#E6DCE7] bg-[#FAF8FB] p-3 text-sm sm:grid-cols-2 lg:grid-cols-6">
      <p>Current load<br/><strong>{r.reviewSummary.currentCredits} cr.</strong></p>
      <p>Add<br/><strong>{r.reviewSummary.addCredits} cr.</strong></p>
      <p>Drop<br/><strong>{r.reviewSummary.dropCredits} cr.</strong></p>
      <p>Resulting load<br/><strong>{r.reviewSummary.resultingCredits} cr.</strong></p>
      <p>Added tuition estimate<br/><strong>{money(r.reviewSummary.addedUnbilledCents)}</strong></p>
+     <p>Drop tuition credit estimate<br/><strong>{money(r.reviewSummary.estimatedDropCreditCents)}</strong>{r.reviewSummary.dropCredits>0&&<><br/><span className="text-xs text-slate-500">{r.reviewSummary.refundPercent}% within Add/Drop window</span></>}</p>
      {r.reviewSummary.underloadWarning&&<p className="sm:col-span-2 lg:col-span-5 rounded border border-[#E5D3A6] bg-[#FFF9EA] p-2 text-xs text-[#6F4F16]">Resulting load is below 12 credits and requires Registrar judgment.</p>}
     </div>}
     {r.reviewSummary&&!r.reviewSummary.valid&&<p className="mt-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">Current validation issue: {r.reviewSummary.error}</p>}
