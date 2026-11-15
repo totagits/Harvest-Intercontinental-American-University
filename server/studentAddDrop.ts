@@ -195,7 +195,8 @@ export function installStudentAddDrop(app:Express,store:Operations){
       ...r,addSectionIds,dropRegistrationIds,adds,drops,
       reviewSummary:'error'in check?{valid:false,error:check.error}:{valid:true,currentCredits,addCredits,dropCredits,
        resultingCredits:check.resultingCredits,underloadWarning:check.underloadWarning,
-       addedUnbilledCents:check.addedUnbilled,estimatedDropCreditCents:check.estimatedDropCredit}
+       addedUnbilledCents:check.addedUnbilled,estimatedDropCreditCents:check.estimatedDropCredit,
+       refundPercent:check.refundPercent}
      };
     });
   return res.json({requests});
