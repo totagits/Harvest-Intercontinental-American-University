@@ -57,6 +57,41 @@ export const functionalRoleCatalog = [
   {key:'student',label:'Student',permissions:['student.self_service']},
 ] as const;
 export const functionalRoleKeys = new Set(functionalRoleCatalog.map(role=>role.key));
+
+export const standardPositionCatalog = [
+  {title:'President / Chancellor',code:'president-chancellor',department:'Office of the President',roles:['executive_leadership'],scopeType:'university'},
+  {title:'Chief of Staff / Executive Assistant to the President',code:'chief-of-staff',department:'Office of the President',roles:['executive_leadership'],scopeType:'university'},
+  {title:'General Counsel / Chief Legal Officer',code:'general-counsel',department:'Legal Affairs',roles:['legal_compliance'],scopeType:'university'},
+  {title:'Provost / Vice President for Academic Affairs',code:'provost-vpaa',department:'Academic Affairs',roles:['academic_executive'],scopeType:'university'},
+  {title:'Academic Dean',code:'academic-dean',department:'Academic Affairs',roles:['academic_dean'],scopeType:'college'},
+  {title:'Department Chair',code:'department-chair',department:'Academic Affairs',roles:['department_lead'],scopeType:'department'},
+  {title:'Academic Advisor',code:'academic-advisor',department:'Academic Affairs',roles:['academic_advisor'],scopeType:'program'},
+  {title:'University Registrar',code:'university-registrar',department:'Office of the Registrar',roles:['registrar_review','registrar_commit'],scopeType:'university'},
+  {title:'Assistant Registrar',code:'assistant-registrar',department:'Office of the Registrar',roles:['registrar_review'],scopeType:'university'},
+  {title:'Director of Admissions',code:'director-admissions',department:'Admissions',roles:['admissions_management'],scopeType:'university'},
+  {title:'Director of Financial Aid',code:'director-financial-aid',department:'Financial Aid',roles:['financial_aid'],scopeType:'university'},
+  {title:'Chief Financial Officer / VP Finance & Administration',code:'cfo-vp-finance',department:'Finance & Administration',roles:['finance_executive'],scopeType:'university'},
+  {title:'Controller',code:'controller',department:'Finance & Administration',roles:['controller'],scopeType:'university'},
+  {title:'Bursar',code:'bursar',department:'Student Accounts',roles:['bursar'],scopeType:'university'},
+  {title:'Refund Payout Officer',code:'refund-payout-officer',department:'Student Accounts',roles:['refund_payout'],scopeType:'university'},
+  {title:'Director of Human Resources',code:'director-hr',department:'Human Resources',roles:['human_resources'],scopeType:'university'},
+  {title:'Director of Procurement & Auxiliary Services',code:'director-procurement',department:'Procurement & Auxiliary Services',roles:['procurement'],scopeType:'university'},
+  {title:'Director of Facilities & Campus Operations',code:'director-facilities',department:'Facilities & Campus Operations',roles:['facilities'],scopeType:'university'},
+  {title:'Chief of Campus Safety / Security',code:'chief-campus-safety',department:'Campus Safety & Security',roles:['campus_safety'],scopeType:'university'},
+  {title:'Chief Information Officer',code:'cio',department:'Information Technology',roles:['cio'],scopeType:'university'},
+  {title:'Chief Information Security Officer',code:'ciso',department:'Information Security',roles:['ciso'],scopeType:'university'},
+  {title:'ERP Administrator',code:'erp-administrator',department:'Information Technology',roles:['erp_admin'],scopeType:'university'},
+  {title:'Director of Educational Technology & Instructional Design',code:'director-edtech',department:'Educational Technology',roles:['educational_technology'],scopeType:'university'},
+  {title:'Director of Institutional Research & Accreditation',code:'director-institutional-research',department:'Institutional Research & Accreditation',roles:['institutional_research'],scopeType:'university'},
+  {title:'Dean of Libraries & Learning Resources',code:'dean-libraries',department:'Libraries & Learning Resources',roles:['library_admin'],scopeType:'university'},
+  {title:'Dean of Students / VP for Student Affairs',code:'dean-students',department:'Student Affairs',roles:['student_affairs'],scopeType:'university'},
+  {title:'Director of Counseling, Health & Wellness',code:'director-wellness',department:'Student Affairs',roles:['health_wellness'],scopeType:'university'},
+  {title:'Director of Career Services & Employer Relations',code:'director-career-services',department:'Student Affairs',roles:['career_services'],scopeType:'university'},
+  {title:'VP for Research & Innovation',code:'vp-research-innovation',department:'Research & Innovation',roles:['research_admin'],scopeType:'university'},
+  {title:'VP for University Advancement / Development',code:'vp-advancement',department:'University Advancement',roles:['advancement'],scopeType:'university'},
+  {title:'Chief Marketing & Communications Officer',code:'chief-marketing-communications',department:'Marketing & Communications',roles:['communications'],scopeType:'university'},
+  {title:'Faculty / Lecturer',code:'faculty-lecturer',department:'Academic Affairs',roles:['faculty'],scopeType:'department'},
+] as const;
 export const digest = (value: string) =>
   crypto.createHash('sha256').update(value).digest('hex');
 export async function hashPassword(password: string) {
@@ -796,6 +831,30 @@ export function installIdentity(
         FROM user_positions up JOIN accounts a ON a.id=up.user_id WHERE up.position_id=? ORDER BY a.email`).all(position.id) as any[])
     }));
     return res.json({roles:functionalRoleCatalog,positions});
+  });
+  app.post('/api/identity/positions/bootstrap',(req,res)=>{
+    const actor=actorOf(res)!;
+    if(actor.role!=='super_admin')return res.sendStatus(403);
+    const stamp=new Date().toISOString();
+    let created=0;
+    sql.exec('BEGIN IMMEDIATE');
+    try{
+      const insertPosition=sql.prepare(\`INSERT OR IGNORE INTO positions(id,title,code,department,scope_type,scope_value,approval_limit_cents,can_delegate,active,created_by,created_at,updated_at)
+        VALUES(?,?,?,?,?,'',NULL,0,1,?,?,?)\`);
+      const insertRole=sql.prepare('INSERT OR IGNORE INTO position_roles(position_id,role_key) VALUES(?,?)');
+      for(const template of standardPositionCatalog){
+        let row=sql.prepare('SELECT id FROM positions WHERE code=?').get(template.code) as any;
+        if(!row){
+          const id=crypto.randomUUID();
+          const result=insertPosition.run(id,template.title,template.code,template.department,template.scopeType,actor.id,stamp,stamp);
+          if(result.changes){created++;row={id};}
+        }
+        if(row)for(const roleKey of template.roles)insertRole.run(row.id,roleKey);
+      }
+      sql.exec('COMMIT');
+    }catch(error){sql.exec('ROLLBACK');throw error;}
+    log(actor.id,'POSITION_CATALOG_BOOTSTRAPPED',JSON.stringify({created,total:standardPositionCatalog.length}));
+    return res.json({success:true,created,total:standardPositionCatalog.length});
   });
   app.post('/api/identity/positions',(req,res)=>{
     const actor=actorOf(res)!;
